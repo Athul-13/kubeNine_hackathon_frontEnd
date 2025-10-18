@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { authService } from '../api';
+import { useStatus } from './StatusContext';
 
 const AuthContext = createContext();
 
@@ -31,6 +32,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const { setOnline, setOffline } = useStatus();
 
   // Check if user is logged in on app start
   useEffect(() => {
@@ -93,7 +95,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoading(true);
       const response = await authService.login(credentials);
-      console.log(response);
+
       // Rocket.Chat response format: { status: "success", data: { authToken, userId, me } }
       if (response.status === 'success') {
         const { authToken, userId, me } = response.data;
@@ -104,10 +106,19 @@ export const AuthProvider = ({ children }) => {
         // Store token and user data
         localStorage.setItem('authToken', authToken);
         localStorage.setItem('userId', userId);
+        localStorage.setItem('username', userInfo.username);
         localStorage.setItem('user', JSON.stringify(userInfo));
         
         setUser(userInfo);
         setIsAuthenticated(true);
+        
+        // Set user status to online
+        try {
+          await setOnline();
+        } catch (statusError) {
+          console.warn('Failed to set online status:', statusError);
+          // Don't fail login if status update fails
+        }
         
         return response;
       } else {
@@ -124,6 +135,14 @@ export const AuthProvider = ({ children }) => {
   // Logout function
   const logout = async () => {
     try {
+      // Set user status to offline before logout
+      try {
+        await setOffline();
+      } catch (statusError) {
+        console.warn('Failed to set offline status:', statusError);
+        // Continue with logout even if status update fails
+      }
+      
       await authService.logout();
     } catch (error) {
       console.error('Logout error:', error);
@@ -131,6 +150,7 @@ export const AuthProvider = ({ children }) => {
       // Clear local storage and state
       localStorage.removeItem('authToken');
       localStorage.removeItem('userId');
+      localStorage.removeItem('username');
       localStorage.removeItem('user');
       setUser(null);
       setIsAuthenticated(false);

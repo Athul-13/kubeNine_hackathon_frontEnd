@@ -1,12 +1,14 @@
 import { Home, MessageCircle, Search, User, Plus } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useStatus } from '../../context/StatusContext';
 import { Card, IconButton, Button } from '../ui';
 
-const PrimarySidebar = ({ activeNav }) => {
+const PrimarySidebar = ({ activeNav, onUserClick }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { userStatus } = useStatus();
   const navItems = [
     { id: 'home', label: 'Home', icon: Home, path: '/home' },
     { id: 'dms', label: 'DMs', icon: MessageCircle, path: '/dms' },
@@ -17,17 +19,19 @@ const PrimarySidebar = ({ activeNav }) => {
     navigate(path);
   };
 
+  const handleUserClick = () => {
+    onUserClick();
+  };
+
   // Get user status color
   const getUserStatusColor = () => {
     if (!user) return 'bg-gray-400';
     
-    const isOnline = user.status === 'online' && user.statusConnection === 'online';
-    if (isOnline) return 'bg-green-500';
-    
-    switch (user.status) {
+    switch (userStatus) {
+      case 'online': return 'bg-green-500';
       case 'away': return 'bg-yellow-500';
       case 'busy': return 'bg-red-500';
-      case 'invisible': return 'bg-gray-400';
+      case 'dnd': return 'bg-red-600';
       default: return 'bg-gray-400';
     }
   };
@@ -63,7 +67,8 @@ const PrimarySidebar = ({ activeNav }) => {
                 icon={item.icon}
                 variant="default"
                 size="lg"
-                title={`${item.label}${user ? ` - ${user.status}` : ''}`}
+                title={`${item.label}${user ? ` - ${userStatus}` : ''}`}
+                onClick={item.id === 'user' ? handleUserClick : undefined}
               />
               {/* Status indicator for user icon */}
               {item.id === 'user' && user && (
@@ -98,7 +103,8 @@ const PrimarySidebar = ({ activeNav }) => {
               icon={item.icon}
               iconPosition="top"
               className="flex-col"
-              title={`${item.label}${user ? ` - ${user.status}` : ''}`}
+              title={`${item.label}${user ? ` - ${userStatus}` : ''}`}
+              onClick={item.id === 'user' ? handleUserClick : undefined}
             >
               {item.label}
             </Button>

@@ -7,6 +7,7 @@ import { useState } from 'react';
 const Layout = () => {
   const location = useLocation();
   const [selectedItem, setSelectedItem] = useState(null);
+  const [showUserProfile, setShowUserProfile] = useState(false);
 
   // Get current navigation based on pathname
   const getCurrentNav = () => {
@@ -19,6 +20,15 @@ const Layout = () => {
 
   const activeNav = getCurrentNav();
 
+  const handleUserProfileToggle = () => {
+    setShowUserProfile(!showUserProfile);
+    setSelectedItem(null); // Clear any selected item when showing user profile
+  };
+
+  const handleCloseUserProfile = () => {
+    setShowUserProfile(false);
+  };
+
   return (
     <div className="h-screen bg-gradient-to-br from-slate-200 via-gray-300 to-slate-400 p-4 md:p-6 no-select relative overflow-hidden">
       {/* Background pattern for depth */}
@@ -27,11 +37,16 @@ const Layout = () => {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(147,51,234,0.1),transparent_50%)] pointer-events-none"></div>
       {/* Desktop Layout */}
       <div className="hidden md:flex h-[calc(100vh-3rem)] gap-4">
-        <PrimarySidebar activeNav={activeNav} />
+        <PrimarySidebar 
+          activeNav={activeNav} 
+          onUserClick={handleUserProfileToggle}
+        />
         <SecondarySidebar 
           activeNav={activeNav} 
           selectedItem={selectedItem} 
-          onSelect={setSelectedItem} 
+          onSelect={setSelectedItem}
+          showUserProfile={showUserProfile}
+          onCloseUserProfile={handleCloseUserProfile}
         />
         <Card className="flex-1 overflow-y-auto">
           <Outlet context={{ selectedItem }} />
@@ -43,12 +58,17 @@ const Layout = () => {
         <SecondarySidebar 
           activeNav={activeNav} 
           selectedItem={selectedItem} 
-          onSelect={setSelectedItem} 
+          onSelect={setSelectedItem}
+          showUserProfile={showUserProfile}
+          onCloseUserProfile={handleCloseUserProfile}
         />
         <Card className="flex-1 overflow-y-auto pb-16">
           <Outlet context={{ selectedItem }} />
         </Card>
-        <PrimarySidebar activeNav={activeNav} />
+        <PrimarySidebar 
+          activeNav={activeNav} 
+          onUserClick={handleUserProfileToggle}
+        />
       </div>
     </div>
   );
