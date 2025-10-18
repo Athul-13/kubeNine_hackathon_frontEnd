@@ -13,10 +13,10 @@ const Button = forwardRef(({
   const baseClasses = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
   
   const variants = {
-    default: 'btn-glass text-gray-800 hover:text-gray-900 focus:ring-gray-500',
-    primary: 'btn-glass-primary text-white focus:ring-blue-500',
-    secondary: 'btn-glass text-gray-700 hover:text-gray-800 focus:ring-gray-500',
-    ghost: 'text-gray-600 hover:bg-white/10 focus:ring-gray-500',
+    default: 'text-gray-600 hover:bg-white/40 hover:text-gray-800 transition-colors',
+    primary: 'btn-glass text-gray-600',
+    secondary: 'text-gray-500 hover:bg-white/10 hover:text-gray-700 transition-colors',
+    ghost: 'text-gray-600 hover:bg-white/10 transition-colors',
   };
   
   const sizes = {

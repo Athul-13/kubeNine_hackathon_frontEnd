@@ -16,16 +16,18 @@ export const API_ENDPOINTS = {
     USERS: '/api/v1/users.list',
     STATUS: '/api/v1/users.setStatus',
   },
-  CHANNELS: {
-    CHANNELS: '/api/v1/channels.list',
+  ROOMS: {
+    ROOMS: '/api/v1/rooms.get',
+    ROOM_INFO: '/api/v1/channels.info',
     JOIN: '/api/v1/channels.join',
     LEAVE: '/api/v1/channels.leave',
     CREATE: '/api/v1/channels.create',
+    MEMBERS: '/api/v1/channels.members',
   },
   MESSAGES: {
-    CHANNEL_MESSAGES: '/api/v1/channels.messages',
+    CHANNEL_MESSAGES: '/api/v1/channels.history',
     DIRECT_MESSAGES: '/api/v1/im.messages',
-    SEND_MESSAGE: '/api/v1/chat.postMessage',
+    SEND_MESSAGE: '/api/v1/chat.sendMessage',
   },
 };
 

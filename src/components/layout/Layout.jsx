@@ -30,16 +30,13 @@ const Layout = () => {
   };
 
   return (
-    <div className="h-screen bg-gradient-to-br from-slate-200 via-gray-300 to-slate-400 p-4 md:p-6 no-select relative overflow-hidden">
-      {/* Background pattern for depth */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.1),transparent_50%)] pointer-events-none"></div>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.1),transparent_50%)] pointer-events-none"></div>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(147,51,234,0.1),transparent_50%)] pointer-events-none"></div>
+    <div className="h-screen bg-gray-400 p-4 md:p-6 no-select relative overflow-hidden">
       {/* Desktop Layout */}
       <div className="hidden md:flex h-[calc(100vh-3rem)] gap-4">
         <PrimarySidebar 
           activeNav={activeNav} 
           onUserClick={handleUserProfileToggle}
+          showUserProfile={showUserProfile}
         />
         <SecondarySidebar 
           activeNav={activeNav} 
@@ -62,12 +59,13 @@ const Layout = () => {
           showUserProfile={showUserProfile}
           onCloseUserProfile={handleCloseUserProfile}
         />
-        <Card className="flex-1 overflow-y-auto pb-16">
+        <Card className="flex-1 overflow-y-auto">
           <Outlet context={{ selectedItem }} />
         </Card>
         <PrimarySidebar 
           activeNav={activeNav} 
           onUserClick={handleUserProfileToggle}
+          showUserProfile={showUserProfile}
         />
       </div>
     </div>

@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useStatus } from '../../context/StatusContext';
 import { Card, IconButton, Button } from '../ui';
 
-const PrimarySidebar = ({ activeNav, onUserClick }) => {
+const PrimarySidebar = ({ activeNav, onUserClick, showUserProfile }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
@@ -31,7 +31,7 @@ const PrimarySidebar = ({ activeNav, onUserClick }) => {
       case 'online': return 'bg-green-500';
       case 'away': return 'bg-yellow-500';
       case 'busy': return 'bg-red-500';
-      case 'dnd': return 'bg-red-600';
+      case 'offline': return 'bg-gray-400';
       default: return 'bg-gray-400';
     }
   };
@@ -65,7 +65,7 @@ const PrimarySidebar = ({ activeNav, onUserClick }) => {
             <div key={item.id} className="relative">
               <IconButton
                 icon={item.icon}
-                variant="default"
+                variant={item.id === 'user' && showUserProfile ? 'primary' : 'default'}
                 size="lg"
                 title={`${item.label}${user ? ` - ${userStatus}` : ''}`}
                 onClick={item.id === 'user' ? handleUserClick : undefined}
@@ -82,32 +82,24 @@ const PrimarySidebar = ({ activeNav, onUserClick }) => {
       {/* Mobile Bottom Navigation - Floating */}
       <Card className="md:hidden rounded-t-2xl border-t border-gray-200 flex justify-around items-center py-3 px-4">
         {navItems.map((item) => (
-          <Button
+          <IconButton
             key={item.id}
             onClick={() => handleNavClick(item.path)}
             variant={activeNav === item.id ? 'primary' : 'default'}
-            size="sm"
+            size="lg"
             icon={item.icon}
-            iconPosition="top"
-            className="flex-col"
             title={item.label}
-          >
-            {item.label}
-          </Button>
+          />
         ))}
         {bottomItems.map((item) => (
           <div key={item.id} className="relative">
-            <Button
-              variant="default"
-              size="sm"
+            <IconButton
               icon={item.icon}
-              iconPosition="top"
-              className="flex-col"
+              variant={item.id === 'user' && showUserProfile ? 'primary' : 'default'}
+              size="lg"
               title={`${item.label}${user ? ` - ${userStatus}` : ''}`}
               onClick={item.id === 'user' ? handleUserClick : undefined}
-            >
-              {item.label}
-            </Button>
+            />
             {/* Status indicator for user icon */}
             {item.id === 'user' && user && (
               <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${getUserStatusColor()}`}></div>

@@ -1,16 +1,28 @@
+import { useState } from 'react';
 import { Card, Button } from '../ui';
 import { useAuth } from '../../context/AuthContext';
 import { useStatus } from '../../context/StatusContext';
+import { useRooms } from '../../context/RoomsContext';
+import { useMessages } from '../../context/MessagesContext';
 
 const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, onCloseUserProfile }) => {
   const { user, logout } = useAuth();
   const { userStatus, setCustomStatus, isUpdatingStatus } = useStatus();
+  const { rooms, currentRoom, selectRoom, isLoading: roomsLoading } = useRooms();
+  const { selectRoomForMessages } = useMessages();
+  const [selectedRoomId, setSelectedRoomId] = useState(null);
   const getSecondaryContent = () => {
     switch (activeNav) {
       case 'home':
         return {
           title: 'Home',
-          items: ['Trending', 'Following', 'For You']
+          items: rooms.map(room => ({
+            id: room._id,
+            name: room.name,
+            type: room.t,
+            unread: room.unread || 0,
+            isSelected: selectedRoomId === room._id
+          }))
         };
       case 'dms':
         return {
@@ -48,7 +60,7 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
         case 'online': return 'Online';
         case 'away': return 'Away';
         case 'busy': return 'Busy';
-        case 'dnd': return 'Do Not Disturb';
+        case 'offline': return 'Offline';
         default: return 'Offline';
       }
     };
@@ -150,54 +162,125 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
   return (
     <>
       {/* Desktop Secondary Sidebar - Floating */}
-      <Card className="hidden md:flex w-64 overflow-y-auto flex-col" padding="none">
+      <Card className="hidden md:flex w-72 overflow-y-auto flex-col" padding="none">
         <div className="border-b border-white/20 p-4">
           <h2 className="font-bold text-gray-800 drop-shadow-sm">
             {showUserProfile ? 'User Profile' : title}
           </h2>
         </div>
-        <div className="p-4 space-y-2 flex-1">
-          {showUserProfile ? (
-            getUserProfileContent()
-          ) : (
-            items.map((item) => (
-              <Button
-                key={item}
-                onClick={() => onSelect(item)}
-                variant={selectedItem === item ? 'primary' : 'default'}
-                className="w-full justify-start"
-              >
-                {item}
-              </Button>
-            ))
-          )}
-        </div>
+               <div className="p-4 space-y-2 flex-1">
+                 {showUserProfile ? (
+                   getUserProfileContent()
+                 ) : activeNav === 'home' ? (
+                   // Render rooms for home section
+                   roomsLoading ? (
+                     <div className="flex justify-center py-4">
+                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                     </div>
+                   ) : items.length > 0 ? (
+                     items.map((room) => (
+                       <Button
+                         key={room.id}
+                         onClick={() => {
+                           const selectedRoom = rooms.find(r => r._id === room.id);
+                           selectRoom(selectedRoom);
+                           selectRoomForMessages();
+                           setSelectedRoomId(room.id);
+                           onSelect(room.name);
+                         }}
+                         variant={room.isSelected ? 'primary' : 'default'}
+                         className="w-full justify-start flex items-center"
+                       >
+                         <span className="flex-1 text-left">#{room.name}</span>
+                         {room.unread > 0 && (
+                           <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                             {room.unread}
+                           </span>
+                         )}
+                       </Button>
+                     ))
+                   ) : (
+                     <div className="text-center py-4 text-gray-500">
+                       <p>No rooms available</p>
+                     </div>
+                   )
+                 ) : (
+                   // Render other sections (DMs, Search)
+                   items.map((item) => (
+                     <Button
+                       key={typeof item === 'string' ? item : item.id || item.name}
+                       onClick={() => onSelect(typeof item === 'string' ? item : item.name)}
+                       variant={selectedItem === (typeof item === 'string' ? item : item.name) ? 'primary' : 'default'}
+                       className="w-full justify-start"
+                     >
+                       {typeof item === 'string' ? item : item.name}
+                     </Button>
+                   ))
+                 )}
+               </div>
       </Card>
 
-      {/* Mobile Secondary Sidebar - Floating */}
-      <Card className="md:hidden overflow-x-auto" padding="none">
-        {showUserProfile ? (
-          <div className="p-4">
-            <h2 className="font-bold text-gray-800 text-sm mb-4 drop-shadow-sm">User Profile</h2>
-            {getUserProfileContent()}
-          </div>
-        ) : (
-          <div className="flex items-center space-x-2 p-4 min-w-max">
-            <h2 className="font-bold text-gray-800 text-sm whitespace-nowrap mr-4 drop-shadow-sm">{title}</h2>
-            {items.map((item) => (
-              <Button
-                key={item}
-                onClick={() => onSelect(item)}
-                variant={selectedItem === item ? 'primary' : 'secondary'}
-                size="sm"
-                className="whitespace-nowrap rounded-full"
-              >
-                {item}
-              </Button>
-            ))}
-          </div>
-        )}
-      </Card>
+             {/* Mobile Secondary Sidebar - Floating */}
+             <Card className="md:hidden overflow-x-auto" padding="none">
+               {showUserProfile ? (
+                 <div className="p-4">
+                   <h2 className="font-bold text-gray-800 text-sm mb-4 drop-shadow-sm">User Profile</h2>
+                   {getUserProfileContent()}
+                 </div>
+               ) : activeNav === 'home' ? (
+                 // Mobile rooms view
+                 <div className="flex items-center space-x-2 p-4 min-w-max">
+                   <h2 className="font-bold text-gray-800 text-sm whitespace-nowrap mr-4 drop-shadow-sm">{title}</h2>
+                   {roomsLoading ? (
+                     <div className="flex items-center space-x-2">
+                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                       <span className="text-sm text-gray-500">Loading...</span>
+                     </div>
+                   ) : items.length > 0 ? (
+                     items.map((room) => (
+                       <Button
+                         key={room.id}
+                         onClick={() => {
+                           const selectedRoom = rooms.find(r => r._id === room.id);
+                           selectRoom(selectedRoom);
+                           selectRoomForMessages();
+                           setSelectedRoomId(room.id);
+                           onSelect(room.name);
+                         }}
+                         variant={room.isSelected ? 'primary' : 'secondary'}
+                         size="sm"
+                         className="whitespace-nowrap rounded-full flex items-center"
+                       >
+                         #{room.name}
+                         {room.unread > 0 && (
+                           <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[16px] text-center">
+                             {room.unread}
+                           </span>
+                         )}
+                       </Button>
+                     ))
+                   ) : (
+                     <span className="text-sm text-gray-500">No rooms</span>
+                   )}
+                 </div>
+               ) : (
+                 // Other sections (DMs, Search)
+                 <div className="flex items-center space-x-2 p-4 min-w-max">
+                   <h2 className="font-bold text-gray-800 text-sm whitespace-nowrap mr-4 drop-shadow-sm">{title}</h2>
+                   {items.map((item) => (
+                     <Button
+                       key={typeof item === 'string' ? item : item.id || item.name}
+                       onClick={() => onSelect(typeof item === 'string' ? item : item.name)}
+                       variant={selectedItem === (typeof item === 'string' ? item : item.name) ? 'primary' : 'secondary'}
+                       size="sm"
+                       className="whitespace-nowrap rounded-full"
+                     >
+                       {typeof item === 'string' ? item : item.name}
+                     </Button>
+                   ))}
+                 </div>
+               )}
+             </Card>
     </>
   );
 };

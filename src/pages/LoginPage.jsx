@@ -63,12 +63,8 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-200 via-gray-300 to-slate-400 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background pattern for depth */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.1),transparent_50%)] pointer-events-none"></div>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.1),transparent_50%)] pointer-events-none"></div>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(147,51,234,0.1),transparent_50%)] pointer-events-none"></div>
-
+    <div className="min-h-screen bg-gray-400 flex items-center justify-center p-4 relative overflow-hidden">
+      
       <Card className="w-full max-w-md p-8 relative z-10">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800 drop-shadow-sm mb-2">
