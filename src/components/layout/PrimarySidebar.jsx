@@ -1,11 +1,36 @@
 import { Home, MessageCircle, Search, User, Plus } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { Card, IconButton, Button } from '../ui';
 
-const PrimarySidebar = ({ activeNav, onNavChange }) => {
+const PrimarySidebar = ({ activeNav }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
   const navItems = [
-    { id: 'home', label: 'Home', icon: Home },
-    { id: 'dms', label: 'DMs', icon: MessageCircle },
-    { id: 'search', label: 'Search', icon: Search },
+    { id: 'home', label: 'Home', icon: Home, path: '/home' },
+    { id: 'dms', label: 'DMs', icon: MessageCircle, path: '/dms' },
+    { id: 'search', label: 'Search', icon: Search, path: '/search' },
   ];
+
+  const handleNavClick = (path) => {
+    navigate(path);
+  };
+
+  // Get user status color
+  const getUserStatusColor = () => {
+    if (!user) return 'bg-gray-400';
+    
+    const isOnline = user.status === 'online' && user.statusConnection === 'online';
+    if (isOnline) return 'bg-green-500';
+    
+    switch (user.status) {
+      case 'away': return 'bg-yellow-500';
+      case 'busy': return 'bg-red-500';
+      case 'invisible': return 'bg-gray-400';
+      default: return 'bg-gray-400';
+    }
+  };
 
   const bottomItems = [
     { id: 'add', label: 'Add', icon: Plus },
@@ -14,68 +39,76 @@ const PrimarySidebar = ({ activeNav, onNavChange }) => {
 
   return (
     <>
-      {/* Desktop Sidebar - Left side */}
-      <aside className="hidden md:flex w-20 bg-white border-r border-gray-200 flex-col items-center py-4 space-y-6">
+      {/* Desktop Sidebar - Floating */}
+      <Card className="hidden md:flex w-20 flex-col items-center py-4 space-y-6">
         {/* Top Navigation Items */}
         <nav className="flex-1 flex flex-col gap-4">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => onNavChange(item.id)}
-              className={`p-3 rounded-lg transition-colors ${
-                activeNav === item.id
-                  ? 'bg-blue-500 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-              title={item.label}
-            >
-              <item.icon size={24} />
-            </button>
-          ))}
+        {navItems.map((item) => (
+          <IconButton
+            key={item.id}
+            icon={item.icon}
+            onClick={() => handleNavClick(item.path)}
+            variant={activeNav === item.id ? 'primary' : 'default'}
+            size="lg"
+            title={item.label}
+          />
+        ))}
         </nav>
 
         {/* Bottom Navigation Items */}
         <nav className="flex flex-col gap-4 border-t border-gray-200 pt-4">
           {bottomItems.reverse().map((item) => (
-            <button
-              key={item.id}
-              className="p-3 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
-              title={item.label}
-            >
-              <item.icon size={24} />
-            </button>
+            <div key={item.id} className="relative">
+              <IconButton
+                icon={item.icon}
+                variant="default"
+                size="lg"
+                title={`${item.label}${user ? ` - ${user.status}` : ''}`}
+              />
+              {/* Status indicator for user icon */}
+              {item.id === 'user' && user && (
+                <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${getUserStatusColor()}`}></div>
+              )}
+            </div>
           ))}
         </nav>
-      </aside>
+      </Card>
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center py-2 px-4 z-50">
+      {/* Mobile Bottom Navigation - Floating */}
+      <Card className="md:hidden rounded-t-2xl border-t border-gray-200 flex justify-around items-center py-3 px-4">
         {navItems.map((item) => (
-          <button
+          <Button
             key={item.id}
-            onClick={() => onNavChange(item.id)}
-            className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
-              activeNav === item.id
-                ? 'bg-blue-500 text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
+            onClick={() => handleNavClick(item.path)}
+            variant={activeNav === item.id ? 'primary' : 'default'}
+            size="sm"
+            icon={item.icon}
+            iconPosition="top"
+            className="flex-col"
             title={item.label}
           >
-            <item.icon size={20} />
-            <span className="text-xs mt-1">{item.label}</span>
-          </button>
+            {item.label}
+          </Button>
         ))}
         {bottomItems.map((item) => (
-          <button
-            key={item.id}
-            className="flex flex-col items-center p-2 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
-            title={item.label}
-          >
-            <item.icon size={20} />
-            <span className="text-xs mt-1">{item.label}</span>
-          </button>
+          <div key={item.id} className="relative">
+            <Button
+              variant="default"
+              size="sm"
+              icon={item.icon}
+              iconPosition="top"
+              className="flex-col"
+              title={`${item.label}${user ? ` - ${user.status}` : ''}`}
+            >
+              {item.label}
+            </Button>
+            {/* Status indicator for user icon */}
+            {item.id === 'user' && user && (
+              <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${getUserStatusColor()}`}></div>
+            )}
+          </div>
         ))}
-      </nav>
+      </Card>
     </>
   );
 };

@@ -1,3 +1,5 @@
+import { Card, Button } from '../ui';
+
 const SecondarySidebar = ({ activeNav, selectedItem, onSelect }) => {
   const getSecondaryContent = () => {
     switch (activeNav) {
@@ -25,47 +27,42 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect }) => {
 
   return (
     <>
-      {/* Desktop Secondary Sidebar */}
-      <aside className="hidden md:flex w-56 bg-white border-r border-gray-200 overflow-y-auto flex-col">
-        <div className="border-b border-gray-200 p-4">
-          <h2 className="font-bold text-gray-900">{title}</h2>
+      {/* Desktop Secondary Sidebar - Floating */}
+      <Card className="hidden md:flex w-64 overflow-y-auto flex-col" padding="none">
+        <div className="border-b border-white/20 p-4">
+          <h2 className="font-bold text-gray-800 drop-shadow-sm">{title}</h2>
         </div>
         <div className="p-4 space-y-2 flex-1">
           {items.map((item) => (
-            <button
+            <Button
               key={item}
               onClick={() => onSelect(item)}
-              className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
-                selectedItem === item
-                  ? 'bg-blue-500 text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
+              variant={selectedItem === item ? 'primary' : 'default'}
+              className="w-full justify-start"
             >
               {item}
-            </button>
+            </Button>
           ))}
         </div>
-      </aside>
+      </Card>
 
-      {/* Mobile Secondary Sidebar - Horizontal scroll */}
-      <aside className="md:hidden bg-white border-b border-gray-200 overflow-x-auto">
+      {/* Mobile Secondary Sidebar - Floating Horizontal scroll */}
+      <Card className="md:hidden overflow-x-auto" padding="none">
         <div className="flex items-center space-x-2 p-4 min-w-max">
-          <h2 className="font-bold text-gray-900 text-sm whitespace-nowrap mr-4">{title}</h2>
+          <h2 className="font-bold text-gray-800 text-sm whitespace-nowrap mr-4 drop-shadow-sm">{title}</h2>
           {items.map((item) => (
-            <button
+            <Button
               key={item}
               onClick={() => onSelect(item)}
-              className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors ${
-                selectedItem === item
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              variant={selectedItem === item ? 'primary' : 'secondary'}
+              size="sm"
+              className="whitespace-nowrap rounded-full"
             >
               {item}
-            </button>
+            </Button>
           ))}
         </div>
-      </aside>
+      </Card>
     </>
   );
 };
