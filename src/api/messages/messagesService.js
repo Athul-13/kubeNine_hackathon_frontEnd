@@ -21,14 +21,21 @@ export const messagesService = {
   },
 
   // Send a message
-  sendMessage: async (roomId, message) => {
+  sendMessage: async (roomId, message, tmid = null) => {
     try {
-      const response = await apiClient.post(API_ENDPOINTS.MESSAGES.SEND_MESSAGE, {
+      const messageData = {
         message: {
           rid: roomId,
           msg: message,
         },
-      });
+      };
+      
+      // Add tmid if it's a thread message
+      if (tmid) {
+        messageData.message.tmid = tmid;
+      }
+      
+      const response = await apiClient.post(API_ENDPOINTS.MESSAGES.SEND_MESSAGE, messageData);
       return {
         success: true,
         message: response.data,
@@ -96,6 +103,19 @@ export const messagesService = {
       return {
         success: false,
         error: error.response?.data?.error || 'Failed to get pinned messages',
+      };
+    }
+  },
+
+  // Get thread messages for a specific message
+  getThreadMessages: async (tmid, count = 50, offset = 0) => {
+    try {
+      const response = await apiClient.get(`${API_ENDPOINTS.MESSAGES.GET_THREAD_MESSAGES}?tmid=${tmid}&count=${count}&offset=${offset}`);
+      return { success: true, messages: response.data.messages || [] };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Failed to get thread messages',
       };
     }
   },

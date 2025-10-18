@@ -99,7 +99,7 @@ export const MessagesProvider = ({ children }) => {
   };
 
   // Send a message
-  const sendMessage = async (message) => {
+  const sendMessage = async (message, tmid = null) => {
     if (!currentRoom) {
       setError('No room selected');
       return { success: false, error: 'No room selected' };
@@ -107,7 +107,7 @@ export const MessagesProvider = ({ children }) => {
 
     try {
       setIsLoading(true);
-      const result = await messagesService.sendMessage(currentRoom._id, message);
+      const result = await messagesService.sendMessage(currentRoom._id, message, tmid);
       
       if (result.success) {
         // Add the new message to the list immediately for better UX
@@ -122,13 +122,18 @@ export const MessagesProvider = ({ children }) => {
           },
         };
         
+        // Add tmid if it's a thread message
+        if (tmid) {
+          newMessage.tmid = tmid;
+        }
+        
         setMessages(prevMessages => [...prevMessages, newMessage]);
         return { success: true, message: result.message };
       } else {
         setError(result.error);
         return { success: false, error: result.error };
       }
-    } catch (err) {
+    } catch {
       const errorMsg = 'Failed to send message';
       setError(errorMsg);
       return { success: false, error: errorMsg };
@@ -150,7 +155,7 @@ export const MessagesProvider = ({ children }) => {
         setError(result.error);
         return { success: false, error: result.error };
       }
-    } catch (err) {
+    } catch {
       const errorMsg = 'Failed to get direct messages';
       setError(errorMsg);
       return { success: false, error: errorMsg };
@@ -178,8 +183,18 @@ export const MessagesProvider = ({ children }) => {
       } else {
         console.error('Failed to load pinned messages:', result.error);
       }
-    } catch (err) {
-      console.error('Error loading pinned messages:', err);
+    } catch {
+      console.error('Error loading pinned messages');
+    }
+  };
+
+  // Get thread messages for a specific message
+  const getThreadMessages = async (tmid) => {
+    try {
+      const result = await messagesService.getThreadMessages(tmid);
+      return result;
+    } catch {
+      return { success: false, error: 'Failed to get thread messages' };
     }
   };
 
@@ -195,7 +210,7 @@ export const MessagesProvider = ({ children }) => {
         setError(result.error);
         return { success: false, error: result.error };
       }
-    } catch (err) {
+    } catch {
       const errorMsg = 'Failed to pin message';
       setError(errorMsg);
       return { success: false, error: errorMsg };
@@ -214,7 +229,7 @@ export const MessagesProvider = ({ children }) => {
         setError(result.error);
         return { success: false, error: result.error };
       }
-    } catch (err) {
+    } catch {
       const errorMsg = 'Failed to unpin message';
       setError(errorMsg);
       return { success: false, error: errorMsg };
@@ -255,6 +270,7 @@ export const MessagesProvider = ({ children }) => {
     loadPinnedMessages,
     sendMessage,
     getDirectMessages,
+    getThreadMessages,
     pinMessage,
     unpinMessage,
     clearMessages,

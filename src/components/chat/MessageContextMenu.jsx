@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Reply, Pin, PinOff } from 'lucide-react';
+import { Reply, Pin, PinOff, MessageSquare } from 'lucide-react';
 
 const MessageContextMenu = ({ 
   message, 
@@ -9,6 +9,7 @@ const MessageContextMenu = ({
   onReply, 
   onPin, 
   onUnpin, 
+  onStartThread,
   isPinned = false 
 }) => {
   const menuRef = useRef(null);
@@ -49,16 +50,18 @@ const MessageContextMenu = ({
     onClose();
   };
 
-  // Use provided coordinates
-  const position = { top: y, left: x };
+  const handleStartThread = () => {
+    onStartThread(message);
+    onClose();
+  };
 
   return (
     <div
       ref={menuRef}
       className="fixed z-50 bg-white/90 backdrop-blur-md border border-gray-200 rounded-lg shadow-lg py-2 min-w-[160px]"
       style={{
-        left: position.left,
-        top: position.top,
+        left: `${x}px`,
+        top: `${y}px`,
       }}
     >
       <button
@@ -67,6 +70,14 @@ const MessageContextMenu = ({
       >
         <Reply className="w-4 h-4" />
         <span>Reply</span>
+      </button>
+      
+      <button
+        onClick={handleStartThread}
+        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2 transition-colors"
+      >
+        <MessageSquare className="w-4 h-4" />
+        <span>Write Thread</span>
       </button>
       
       <button

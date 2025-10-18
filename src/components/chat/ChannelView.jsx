@@ -1,20 +1,24 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRooms } from '../../context/RoomsContext';
 import { useMessages } from '../../context/MessagesContext';
 import { Card, Button } from '../ui';
-import { Send, ChevronUp, Users, Hash, Info } from 'lucide-react';
+import { Send, ChevronUp, Users, Hash, Info, MessageSquare } from 'lucide-react';
 import RoomInfo from './RoomInfo';
 import MessageContextMenu from './MessageContextMenu';
 import PinnedMessagesDrawer from './PinnedMessagesDrawer';
+import ThreadPanel from './ThreadPanel';
 
 const ChannelView = () => {
   const { currentRoom, showRoomInfo, toggleRoomInfo, closeRoomInfo } = useRooms();
-  const { messages, pinnedMessages, isLoading, sendMessage, loadMoreMessages, isPolling, pinMessage, unpinMessage } = useMessages();
+  const { messages, pinnedMessages, isLoading, sendMessage, loadMoreMessages, isPolling, pinMessage, unpinMessage, getThreadMessages } = useMessages();
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [contextMenu, setContextMenu] = useState(null);
   const [isPinnedDrawerExpanded, setIsPinnedDrawerExpanded] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
+  const [showThread, setShowThread] = useState(false);
+  const [selectedThreadMessage, setSelectedThreadMessage] = useState(null);
+  const [threadMessages, setThreadMessages] = useState([]);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
@@ -27,10 +31,27 @@ const ChannelView = () => {
     console.log('ChannelView - currentRoom changed:', currentRoom);
   }, [currentRoom]);
 
+  // Load thread messages for a specific message using API
+  const loadThreadMessages = useCallback(async (messageId) => {
+    try {
+      const result = await getThreadMessages(messageId);
+      if (result.success) {
+        setThreadMessages(result.messages);
+      } else {
+        console.error('Failed to load thread messages:', result.error);
+        setThreadMessages([]);
+      }
+    } catch (error) {
+      console.error('Error loading thread messages:', error);
+      setThreadMessages([]);
+    }
+  }, [getThreadMessages]);
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
 
   // Close context menu on click outside
   useEffect(() => {
@@ -42,7 +63,7 @@ const ChannelView = () => {
     
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
-  }, [contextMenu]);
+    }, [contextMenu]);
 
   // Handle sending a message
   const handleSendMessage = async (e) => {
@@ -152,6 +173,52 @@ const ChannelView = () => {
     closeContextMenu();
   };
 
+  // Handle start thread
+  const handleStartThread = async (message) => {
+    setSelectedThreadMessage(message);
+    setThreadMessages([]); // Clear previous thread messages
+    setShowThread(true);
+    
+    // Load existing thread messages using API
+    await loadThreadMessages(message._id);
+  };
+
+  // Handle close thread
+  const handleCloseThread = () => {
+    setShowThread(false);
+    setSelectedThreadMessage(null);
+    setThreadMessages([]);
+  };
+
+  // Handle send thread message
+  const handleSendThreadMessage = async (messageText) => {
+    if (!selectedThreadMessage || !messageText.trim()) return;
+
+    try {
+      const result = await sendMessage(messageText.trim(), selectedThreadMessage._id);
+      if (result.success) {
+        // Add the message to thread messages optimistically
+        setThreadMessages(prev => [...prev, {
+          _id: `temp-${Date.now()}`,
+          rid: currentRoom._id,
+          msg: messageText.trim(),
+          ts: new Date().toISOString(),
+          u: { _id: localStorage.getItem('userId'), username: localStorage.getItem('username') },
+          tmid: selectedThreadMessage._id
+        }]);
+      }
+      return result;
+    } catch (error) {
+      console.error('Failed to send thread message:', error);
+      return { success: false, error: 'Failed to send thread message' };
+    }
+  };
+
+  // Check if a message has thread replies using tcount
+  const hasThreadReplies = (message) => {
+    return message.tcount && message.tcount > 0;
+  };
+
   // Format message timestamp
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
@@ -174,10 +241,12 @@ const ChannelView = () => {
     }
   };
 
-  // Group messages by date
+  // Group messages by date (excluding thread messages)
   const groupMessagesByDate = (messages) => {
     const groups = {};
-    messages.forEach((message) => {
+    // Filter out thread messages (messages with tmid)
+    const mainMessages = messages.filter(message => !message.tmid);
+    mainMessages.forEach((message) => {
       const date = formatDate(message.ts);
       if (!groups[date]) {
         groups[date] = [];
@@ -297,7 +366,7 @@ const ChannelView = () => {
               {dateMessages.map((message, index) => {
                 // Check if message is from current user
                 const isOwnMessage = message.u?._id === currentRoom.currentUserId || 
-                                   message.u?.username === localStorage.getItem('username');
+                                  message.u?.username === localStorage.getItem('username');
                 const isPinned = pinnedMessages.some(pinnedMsg => pinnedMsg._id === message._id);
                 
                 const isHighlighted = highlightedMessageId === message._id;
@@ -308,34 +377,51 @@ const ChannelView = () => {
                     className={`flex mb-3 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
                     data-message-id={message._id}
                   >
-                    <div 
-                      className={`max-w-[75%] rounded-2xl px-4 py-2 backdrop-blur-md cursor-pointer hover:shadow-lg transition-all duration-200 ${
-                        isOwnMessage 
-                          ? 'bg-blue-500/25 border border-blue-400/30 text-gray-800 shadow-lg' 
-                          : 'bg-white/30 border border-white/30 text-gray-900 shadow-md'
-                      } ${isPinned ? 'ring-2 ring-yellow-400/50 bg-yellow-50/30' : ''} ${
-                        isHighlighted ? 'ring-4 ring-blue-500/70 bg-blue-100/50 animate-pulse' : ''
-                      }`}
-                      style={{
-                        backdropFilter: 'blur(20px) saturate(180%)',
-                        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-                      }}
-                      onContextMenu={(e) => handleMessageRightClick(e, message)}
-                    >
-                      <div className="flex items-baseline space-x-2 mb-0.5">
-                        <span className="text-xs font-medium opacity-90">
-                          {isOwnMessage ? 'You' : (message.u?.name || message.u?.username || 'Unknown')}
-                        </span>
-                        <span className="text-xs opacity-70">
-                          {formatTime(message.ts)}
-                        </span>
-                        {isPinned && (
-                          <span className="text-xs text-yellow-600 font-medium">
-                            📌 Pinned
+                    <div className="flex flex-col max-w-[75%]">
+                      <div 
+                        className={`rounded-2xl px-4 py-2 backdrop-blur-md cursor-pointer hover:shadow-lg transition-all duration-200 ${
+                          isOwnMessage 
+                            ? 'bg-blue-500/25 border border-blue-400/30 text-gray-800 shadow-lg' 
+                            : 'bg-white/30 border border-white/30 text-gray-900 shadow-md'
+                        } ${isPinned ? 'ring-2 ring-yellow-400/50 bg-yellow-50/30' : ''} ${
+                          isHighlighted ? 'ring-4 ring-blue-500/70 bg-blue-100/50 animate-pulse' : ''
+                        }`}
+                        style={{
+                          backdropFilter: 'blur(20px) saturate(180%)',
+                          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                        }}
+                        onContextMenu={(e) => handleMessageRightClick(e, message)}
+                      >
+                        <div className="flex items-baseline space-x-2 mb-0.5">
+                          <span className="text-xs font-medium opacity-90">
+                            {isOwnMessage ? 'You' : (message.u?.name || message.u?.username || 'Unknown')}
                           </span>
-                        )}
+                          <span className="text-xs opacity-70">
+                            {formatTime(message.ts)}
+                          </span>
+                          {isPinned && (
+                            <span className="text-xs text-yellow-600 font-medium">
+                              📌 Pinned
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm break-words">{message.msg}</p>
                       </div>
-                      <p className="text-sm break-words">{message.msg}</p>
+                      
+                      {/* Thread Button - Always aligned to the left */}
+                      {hasThreadReplies(message) && (
+                        <div className={`mt-1 flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+                          <Button
+                            onClick={() => handleStartThread(message)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 px-2 py-1 rounded"
+                          >
+                            <MessageSquare className="w-3 h-3 mr-1" />
+                            Threads
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -396,48 +482,84 @@ const ChannelView = () => {
         </div>
       </div>
 
-      {/* Room Info Panel - Responsive */}
-      {showRoomInfo && (
-        <>
-          {/* Mobile: Slide-in Overlay */}
-          <div 
-            className="md:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-            onClick={closeRoomInfo}
-          >
-            <div 
-              className="absolute right-0 top-0 bottom-0 w-full max-w-sm h-full"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <RoomInfo 
-                roomId={currentRoom._id} 
-                onClose={closeRoomInfo} 
-              />
-            </div>
-          </div>
+             {/* Room Info Panel - Responsive */}
+             {showRoomInfo && (
+               <>
+                 {/* Mobile: Slide-in Overlay */}
+                 <div 
+                   className="md:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+                   onClick={closeRoomInfo}
+                 >
+                   <div 
+                     className="absolute right-0 top-0 bottom-0 w-full max-w-sm h-full"
+                     onClick={(e) => e.stopPropagation()}
+                   >
+                     <RoomInfo 
+                       roomId={currentRoom._id} 
+                       onClose={closeRoomInfo} 
+                     />
+                   </div>
+                 </div>
 
-          {/* Desktop: Side Panel - Takes full height */}
-          <div className="hidden md:block w-96 flex-shrink-0 h-full">
-            <RoomInfo 
-              roomId={currentRoom._id} 
-              onClose={closeRoomInfo} 
-            />
-          </div>
-        </>
-      )}
+                 {/* Desktop: Side Panel - Takes full height */}
+                 <div className="hidden md:block w-96 flex-shrink-0 h-full">
+                   <RoomInfo 
+                     roomId={currentRoom._id} 
+                     onClose={closeRoomInfo} 
+                   />
+                 </div>
+               </>
+             )}
 
-      {/* Context Menu */}
-      {contextMenu && (
-          <MessageContextMenu
-            message={contextMenu.message}
-            x={contextMenu.x}
-            y={contextMenu.y}
-            onClose={closeContextMenu}
-            onReply={handleReply}
-            onPin={handlePin}
-            onUnpin={handleUnpin}
-            isPinned={pinnedMessages.some(pinnedMsg => pinnedMsg._id === contextMenu.message._id)}
-          />
-      )}
+             {/* Thread Panel - Responsive */}
+             {showThread && selectedThreadMessage && (
+               <>
+                 {/* Mobile: Slide-in Overlay */}
+                 <div 
+                   className="md:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+                   onClick={handleCloseThread}
+                 >
+                   <div 
+                     className="absolute right-0 top-0 bottom-0 w-full max-w-sm h-full"
+                     onClick={(e) => e.stopPropagation()}
+                   >
+                     <ThreadPanel
+                       originalMessage={selectedThreadMessage}
+                       threadMessages={threadMessages}
+                       onSendThreadMessage={handleSendThreadMessage}
+                       onClose={handleCloseThread}
+                       isLoading={isLoading}
+                     />
+                   </div>
+                 </div>
+
+                 {/* Desktop: Side Panel - Takes full height */}
+                 <div className="hidden md:block w-96 flex-shrink-0 h-full">
+                   <ThreadPanel
+                     originalMessage={selectedThreadMessage}
+                     threadMessages={threadMessages}
+                     onSendThreadMessage={handleSendThreadMessage}
+                     onClose={handleCloseThread}
+                     isLoading={isLoading}
+                   />
+                 </div>
+               </>
+             )}
+
+             {/* Context Menu */}
+             {contextMenu && (
+                 <MessageContextMenu
+                   message={contextMenu.message}
+                   x={contextMenu.x}
+                   y={contextMenu.y}
+                   onClose={closeContextMenu}
+                   onReply={handleReply}
+                   onPin={handlePin}
+                   onUnpin={handleUnpin}
+                   onStartThread={handleStartThread}
+                   isPinned={pinnedMessages.some(pinnedMsg => pinnedMsg._id === contextMenu.message._id)}
+                 />
+             )}
     </div>
   );
 };

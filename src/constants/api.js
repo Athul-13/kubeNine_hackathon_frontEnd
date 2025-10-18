@@ -16,6 +16,9 @@ export const API_ENDPOINTS = {
     USERS: '/api/v1/users.list',
     STATUS: '/api/v1/users.setStatus',
   },
+  CHANNELS: {
+    LIST: '/api/v1/channels.list',
+  },
   ROOMS: {
     ROOMS: '/api/v1/rooms.get',
     ROOM_INFO: '/api/v1/channels.info',
@@ -31,6 +34,7 @@ export const API_ENDPOINTS = {
     PIN_MESSAGE: '/api/v1/chat.pinMessage',
     UNPIN_MESSAGE: '/api/v1/chat.unPinMessage',
     GET_PINNED_MESSAGES: '/api/v1/chat.getPinnedMessages',
+    GET_THREAD_MESSAGES: '/api/v1/chat.getThreadMessages',
   },
 };
 

@@ -1,17 +1,49 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, Button } from '../ui';
 import { useAuth } from '../../context/AuthContext';
 import { useStatus } from '../../context/StatusContext';
 import { useRooms } from '../../context/RoomsContext';
 import { useMessages } from '../../context/MessagesContext';
+import { useAdd } from '../../context/AddContext';
+import { Hash, MessageCircle } from 'lucide-react';
 
 const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, onCloseUserProfile }) => {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { userStatus, setCustomStatus, isUpdatingStatus } = useStatus();
-  const { rooms, currentRoom, selectRoom, isLoading: roomsLoading } = useRooms();
+  const { rooms, selectRoom, isLoading: roomsLoading } = useRooms();
   const { selectRoomForMessages } = useMessages();
+  const { showAddOptions, selectAddOption } = useAdd();
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const getSecondaryContent = () => {
+    // Show Add options if Add button was clicked
+    if (showAddOptions) {
+      return {
+        title: 'Add New',
+        items: [
+          {
+            id: 'channel',
+            name: 'Create New Channel',
+            icon: Hash,
+            onClick: () => {
+              selectAddOption('channel');
+              navigate('/add');
+            }
+          },
+          {
+            id: 'dm',
+            name: 'Direct Message',
+            icon: MessageCircle,
+            onClick: () => {
+              selectAddOption('dm');
+              navigate('/add');
+            }
+          }
+        ]
+      };
+    }
+
     switch (activeNav) {
       case 'home':
         return {
@@ -171,6 +203,19 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
                <div className="p-4 space-y-2 flex-1">
                  {showUserProfile ? (
                    getUserProfileContent()
+                 ) : showAddOptions ? (
+                   // Render Add options
+                   items.map((item) => (
+                     <Button
+                       key={item.id}
+                       onClick={item.onClick}
+                       variant="default"
+                       className="w-full justify-start flex items-center space-x-3"
+                     >
+                       <item.icon className="w-4 h-4" />
+                       <span className="flex-1 text-left">{item.name}</span>
+                     </Button>
+                   ))
                  ) : activeNav === 'home' ? (
                    // Render rooms for home section
                    roomsLoading ? (
@@ -226,6 +271,23 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
                  <div className="p-4">
                    <h2 className="font-bold text-gray-800 text-sm mb-4 drop-shadow-sm">User Profile</h2>
                    {getUserProfileContent()}
+                 </div>
+               ) : showAddOptions ? (
+                 // Mobile Add options view
+                 <div className="flex items-center space-x-2 p-4 min-w-max">
+                   <h2 className="font-bold text-gray-800 text-sm whitespace-nowrap mr-4 drop-shadow-sm">{title}</h2>
+                   {items.map((item) => (
+                     <Button
+                       key={item.id}
+                       onClick={item.onClick}
+                       variant="secondary"
+                       size="sm"
+                       className="whitespace-nowrap rounded-full flex items-center space-x-2"
+                     >
+                       <item.icon className="w-3 h-3" />
+                       {item.name}
+                     </Button>
+                   ))}
                  </div>
                ) : activeNav === 'home' ? (
                  // Mobile rooms view
