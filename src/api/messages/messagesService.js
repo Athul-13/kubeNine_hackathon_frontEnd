@@ -56,6 +56,49 @@ export const messagesService = {
       };
     }
   },
+
+  // Pin a message
+  pinMessage: async (messageId) => {
+    try {
+      const response = await apiClient.post(API_ENDPOINTS.MESSAGES.PIN_MESSAGE, {
+        messageId: messageId,
+      });
+      return { success: true, message: response.data };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Failed to pin message',
+      };
+    }
+  },
+
+  // Unpin a message
+  unpinMessage: async (messageId) => {
+    try {
+      const response = await apiClient.post(API_ENDPOINTS.MESSAGES.UNPIN_MESSAGE, {
+        messageId: messageId,
+      });
+      return { success: true, message: response.data };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Failed to unpin message',
+      };
+    }
+  },
+
+  // Get pinned messages for a room
+  getPinnedMessages: async (roomId) => {
+    try {
+      const response = await apiClient.get(`${API_ENDPOINTS.MESSAGES.GET_PINNED_MESSAGES}?roomId=${roomId}`);
+      return { success: true, messages: response.data.messages || [] };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Failed to get pinned messages',
+      };
+    }
+  },
 };
 
 export default messagesService;

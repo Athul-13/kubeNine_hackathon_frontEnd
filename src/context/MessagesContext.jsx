@@ -7,6 +7,7 @@ const MessagesContext = createContext(null);
 
 export const MessagesProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
+  const [pinnedMessages, setPinnedMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isPolling, setIsPolling] = useState(false);
@@ -19,9 +20,11 @@ export const MessagesProvider = ({ children }) => {
   useEffect(() => {
     if (isAuthenticated && currentRoom && isRoomExplicitlySelected) {
       loadMessages();
+      loadPinnedMessages();
       startPolling();
     } else {
       setMessages([]);
+      setPinnedMessages([]);
       stopPolling();
     }
 
@@ -164,6 +167,60 @@ export const MessagesProvider = ({ children }) => {
     await loadMessages(offset);
   };
 
+  // Load pinned messages for current room
+  const loadPinnedMessages = async () => {
+    if (!currentRoom) return;
+
+    try {
+      const result = await messagesService.getPinnedMessages(currentRoom._id);
+      if (result.success) {
+        setPinnedMessages(result.messages);
+      } else {
+        console.error('Failed to load pinned messages:', result.error);
+      }
+    } catch (err) {
+      console.error('Error loading pinned messages:', err);
+    }
+  };
+
+  // Pin a message
+  const pinMessage = async (messageId) => {
+    try {
+      const result = await messagesService.pinMessage(messageId);
+      if (result.success) {
+        // Reload pinned messages to get updated list
+        await loadPinnedMessages();
+        return { success: true };
+      } else {
+        setError(result.error);
+        return { success: false, error: result.error };
+      }
+    } catch (err) {
+      const errorMsg = 'Failed to pin message';
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    }
+  };
+
+  // Unpin a message
+  const unpinMessage = async (messageId) => {
+    try {
+      const result = await messagesService.unpinMessage(messageId);
+      if (result.success) {
+        // Reload pinned messages to get updated list
+        await loadPinnedMessages();
+        return { success: true };
+      } else {
+        setError(result.error);
+        return { success: false, error: result.error };
+      }
+    } catch (err) {
+      const errorMsg = 'Failed to unpin message';
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    }
+  };
+
   // Clear messages
   const clearMessages = () => {
     setMessages([]);
@@ -189,13 +246,17 @@ export const MessagesProvider = ({ children }) => {
 
   const value = {
     messages,
+    pinnedMessages,
     isLoading,
     error,
     isPolling,
     loadMessages,
     loadMoreMessages,
+    loadPinnedMessages,
     sendMessage,
     getDirectMessages,
+    pinMessage,
+    unpinMessage,
     clearMessages,
     clearError,
     selectRoomForMessages,

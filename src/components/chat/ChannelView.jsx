@@ -4,12 +4,17 @@ import { useMessages } from '../../context/MessagesContext';
 import { Card, Button } from '../ui';
 import { Send, ChevronUp, Users, Hash, Info } from 'lucide-react';
 import RoomInfo from './RoomInfo';
+import MessageContextMenu from './MessageContextMenu';
+import PinnedMessagesDrawer from './PinnedMessagesDrawer';
 
 const ChannelView = () => {
   const { currentRoom, showRoomInfo, toggleRoomInfo, closeRoomInfo } = useRooms();
-  const { messages, isLoading, sendMessage, loadMoreMessages, isPolling } = useMessages();
+  const { messages, pinnedMessages, isLoading, sendMessage, loadMoreMessages, isPolling, pinMessage, unpinMessage } = useMessages();
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [isPinnedDrawerExpanded, setIsPinnedDrawerExpanded] = useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
@@ -26,6 +31,18 @@ const ChannelView = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Close context menu on click outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (contextMenu) {
+        closeContextMenu();
+      }
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [contextMenu]);
 
   // Handle sending a message
   const handleSendMessage = async (e) => {
@@ -46,6 +63,93 @@ const ChannelView = () => {
   // Handle load more messages
   const handleLoadMore = async () => {
     await loadMoreMessages();
+  };
+
+  // Handle right-click on message
+  const handleMessageRightClick = (e, message) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      message,
+      x: e.clientX,
+      y: e.clientY
+    });
+  };
+
+  // Close context menu
+  const closeContextMenu = () => {
+    setContextMenu(null);
+  };
+
+  // Toggle pinned messages drawer
+  const togglePinnedDrawer = () => {
+    setIsPinnedDrawerExpanded(!isPinnedDrawerExpanded);
+  };
+
+  // Handle clicking on a pinned message
+  const handlePinnedMessageClick = (pinnedMessage) => {
+    // Close the drawer
+    setIsPinnedDrawerExpanded(false);
+    
+    // Find the message in the messages array
+    const messageElement = document.querySelector(`[data-message-id="${pinnedMessage._id}"]`);
+    
+    if (messageElement) {
+      // Scroll to the message
+      messageElement.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+      });
+      
+      // Highlight the message briefly
+      setHighlightedMessageId(pinnedMessage._id);
+      
+      // Remove highlight after 2 seconds
+      setTimeout(() => {
+        setHighlightedMessageId(null);
+      }, 2000);
+    }
+  };
+
+  // Handle reply to message
+  const handleReply = (message) => {
+    setNewMessage(`@${message.u?.username || message.u?.name || 'Unknown'} `);
+    closeContextMenu();
+    // Focus on input field
+    setTimeout(() => {
+      const input = document.querySelector('input[type="text"]');
+      if (input) input.focus();
+    }, 100);
+  };
+
+  // Handle pin message
+  const handlePin = async (message) => {
+    try {
+      const result = await pinMessage(message._id);
+      if (result.success) {
+        console.log('Pinned message:', message);
+      } else {
+        console.error('Failed to pin message:', result.error);
+      }
+    } catch (error) {
+      console.error('Error pinning message:', error);
+    }
+    closeContextMenu();
+  };
+
+  // Handle unpin message
+  const handleUnpin = async (message) => {
+    try {
+      const result = await unpinMessage(message._id);
+      if (result.success) {
+        console.log('Unpinned message:', message);
+      } else {
+        console.error('Failed to unpin message:', result.error);
+      }
+    } catch (error) {
+      console.error('Error unpinning message:', error);
+    }
+    closeContextMenu();
   };
 
   // Format message timestamp
@@ -110,7 +214,7 @@ const ChannelView = () => {
         }}
       >
         {/* Channel Header */}
-        <div className="flex-shrink-0 flex items-center justify-between p-4 rounded-lg btn-glass">
+        <div className="flex-shrink-0 flex items-center justify-between p-4 rounded-lg btn-glass mb-0.5">
           <div 
             className="flex items-center space-x-3 cursor-pointer hover:bg-white/40 rounded-lg p-2 -m-2 transition-colors min-w-0"
             onClick={(e) => {
@@ -153,8 +257,16 @@ const ChannelView = () => {
           </div>
         </div>
 
+        {/* Pinned Messages Drawer */}
+        <PinnedMessagesDrawer
+          pinnedMessages={pinnedMessages}
+          onMessageClick={handlePinnedMessageClick}
+          isExpanded={isPinnedDrawerExpanded}
+          onToggle={togglePinnedDrawer}
+        />
+
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={messagesContainerRef}>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide" ref={messagesContainerRef}>
           {/* Load More Button */}
           {messages.length > 0 && (
             <div className="flex justify-center">
@@ -183,42 +295,47 @@ const ChannelView = () => {
 
               {/* Messages for this date */}
               {dateMessages.map((message, index) => {
-                const isCurrentUser = message.u?._id === localStorage.getItem('userId');
+                // Check if message is from current user
+                const isOwnMessage = message.u?._id === currentRoom.currentUserId || 
+                                   message.u?.username === localStorage.getItem('username');
+                const isPinned = pinnedMessages.some(pinnedMsg => pinnedMsg._id === message._id);
+                
+                const isHighlighted = highlightedMessageId === message._id;
                 
                 return (
-                  <div key={message._id || index} className={`flex mb-4 px-2 py-1 transition-colors ${
-                    isCurrentUser ? 'justify-end' : 'justify-start'
-                  }`}>
-                    <div className={`flex space-x-3 max-w-[70%] ${
-                      isCurrentUser ? 'flex-row-reverse space-x-reverse' : 'flex-row'
-                    }`}>
-                      {/* Avatar */}
-                      <div className="w-10 h-10 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
-                        {(message.u?.name || message.u?.username || 'U').charAt(0).toUpperCase()}
-                      </div>
-
-                      {/* Message Content */}
-                      <div className={`flex-1 min-w-0 ${
-                        isCurrentUser ? 'text-right' : 'text-left'
-                      }`}>
-                        <div className={`flex items-baseline space-x-2 mb-1 ${
-                          isCurrentUser ? 'justify-end' : 'justify-start'
-                        }`}>
-                          <span className="font-semibold text-gray-800 text-sm">
-                            {message.u?.name || message.u?.username || 'Unknown User'}
+                  <div 
+                    key={message._id || index} 
+                    className={`flex mb-3 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                    data-message-id={message._id}
+                  >
+                    <div 
+                      className={`max-w-[75%] rounded-2xl px-4 py-2 backdrop-blur-md cursor-pointer hover:shadow-lg transition-all duration-200 ${
+                        isOwnMessage 
+                          ? 'bg-blue-500/25 border border-blue-400/30 text-gray-800 shadow-lg' 
+                          : 'bg-white/30 border border-white/30 text-gray-900 shadow-md'
+                      } ${isPinned ? 'ring-2 ring-yellow-400/50 bg-yellow-50/30' : ''} ${
+                        isHighlighted ? 'ring-4 ring-blue-500/70 bg-blue-100/50 animate-pulse' : ''
+                      }`}
+                      style={{
+                        backdropFilter: 'blur(20px) saturate(180%)',
+                        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                      }}
+                      onContextMenu={(e) => handleMessageRightClick(e, message)}
+                    >
+                      <div className="flex items-baseline space-x-2 mb-0.5">
+                        <span className="text-xs font-medium opacity-90">
+                          {isOwnMessage ? 'You' : (message.u?.name || message.u?.username || 'Unknown')}
+                        </span>
+                        <span className="text-xs opacity-70">
+                          {formatTime(message.ts)}
+                        </span>
+                        {isPinned && (
+                          <span className="text-xs text-yellow-600 font-medium">
+                            📌 Pinned
                           </span>
-                          <span className="text-xs text-gray-500">
-                            {formatTime(message.ts)}
-                          </span>
-                        </div>
-                        <div className={`inline-block ${
-                          isCurrentUser 
-                            ? 'bg-blue-500 text-white rounded-2xl rounded-br-md' 
-                            : 'bg-white/70 backdrop-blur-sm text-gray-800 rounded-2xl rounded-bl-md'
-                        } px-4 py-2 shadow-sm`}>
-                          <p className="text-sm break-words leading-relaxed">{message.msg}</p>
-                        </div>
+                        )}
                       </div>
+                      <p className="text-sm break-words">{message.msg}</p>
                     </div>
                   </div>
                 );
@@ -250,17 +367,23 @@ const ChannelView = () => {
 
         {/* Message Input */}
         <div className="flex-shrink-0 p-4 ">
-          <form onSubmit={handleSendMessage} className="flex space-x-3">
+          <div className="flex space-x-3">
             <input
               type="text"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage(e);
+                }
+              }}
               placeholder={`Message #${currentRoom.name}`}
               className="flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white/80 backdrop-blur-sm text-gray-800 placeholder-gray-500 outline-none transition-all"
               disabled={isSending}
             />
             <Button
-              type="submit"
+              onClick={handleSendMessage}
               disabled={!newMessage.trim() || isSending}
               variant="primary"
               size="md"
@@ -269,7 +392,7 @@ const ChannelView = () => {
               <Send className="w-4 h-4" />
               <span className="hidden sm:inline">{isSending ? 'Sending...' : 'Send'}</span>
             </Button>
-          </form>
+          </div>
         </div>
       </div>
 
@@ -300,6 +423,20 @@ const ChannelView = () => {
             />
           </div>
         </>
+      )}
+
+      {/* Context Menu */}
+      {contextMenu && (
+          <MessageContextMenu
+            message={contextMenu.message}
+            x={contextMenu.x}
+            y={contextMenu.y}
+            onClose={closeContextMenu}
+            onReply={handleReply}
+            onPin={handlePin}
+            onUnpin={handleUnpin}
+            isPinned={pinnedMessages.some(pinnedMsg => pinnedMsg._id === contextMenu.message._id)}
+          />
       )}
     </div>
   );

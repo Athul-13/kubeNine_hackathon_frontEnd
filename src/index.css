@@ -19,6 +19,11 @@ html, body {
   user-select: none;
 }
 
+/* Hide scrollbar for Chrome, Safari, Edge */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Smooth transitions for navigation */
 * {
   transition: all 0.2s ease-in-out;
@@ -87,4 +92,14 @@ html, body {
 .btn-glass-primary:hover {
   background: rgba(59, 130, 246, 0.4);
   box-shadow: 0 6px 20px 0 rgba(59, 130, 246, 0.4);
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Safari and Chrome */
 }
