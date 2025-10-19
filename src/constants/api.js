@@ -40,6 +40,9 @@ export const API_ENDPOINTS = {
     LIST: '/api/v1/dm.list',
     CREATE: '/api/v1/dm.create',
   },
+  FILES: {
+    UPLOAD: '/api/v1/rooms.upload',
+  },
 };
 
 // HTTP Status Codes

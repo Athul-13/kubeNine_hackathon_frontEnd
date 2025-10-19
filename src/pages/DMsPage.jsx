@@ -13,9 +13,11 @@ const DMsPage = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 flex flex-col h-full">
       {selectedItem ? (
-        <DMView selectedDM={selectedItem} />
+        <div className="flex-1 h-full">
+          <DMView selectedDM={selectedItem} />
+        </div>
       ) : (
         <Card className="flex-1 overflow-y-auto p-6">
           <div className="text-center">

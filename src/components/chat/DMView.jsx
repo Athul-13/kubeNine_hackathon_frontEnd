@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Card, Button, IconButton } from '../ui';
+import { Card, Button, IconButton, FileUpload } from '../ui';
 import { useMessages } from '../../context/MessagesContext';
 import { useAuth } from '../../context/AuthContext';
 import { 
@@ -8,11 +8,17 @@ import {
   ChevronUp,
   MessageCircle,
   MessageSquare,
-  Users
+  Users,
+  File,
+  Image,
+  Video,
+  Music,
+  Download
 } from 'lucide-react';
 import MessageContextMenu from './MessageContextMenu';
 import ThreadPanel from './ThreadPanel';
 import PinnedMessagesDrawer from './PinnedMessagesDrawer';
+import MessageItem from './MessageItem';
 
 const DMView = ({ selectedDM }) => {
   const { 
@@ -27,6 +33,7 @@ const DMView = ({ selectedDM }) => {
     pinMessage,
     unpinMessage,
     pollDMMessages,
+    uploadDMFile,
     dms,
     isPolling
   } = useMessages();
@@ -41,6 +48,8 @@ const DMView = ({ selectedDM }) => {
   const [selectedThreadMessage, setSelectedThreadMessage] = useState(null);
   const [threadMessages, setThreadMessages] = useState([]);
   const [currentDMId, setCurrentDMId] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
   const pollingIntervalRef = useRef(null);
   
   const messagesEndRef = useRef(null);
@@ -93,6 +102,8 @@ const DMView = ({ selectedDM }) => {
     };
   }, [selectedDM, dms, user?.username, loadDMMessages, loadPinnedMessages, startDMPolling, stopDMPolling]);
 
+  console.log('dmMessages', dmMessages);
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -125,6 +136,38 @@ const DMView = ({ selectedDM }) => {
       setThreadMessages([]);
     }
   }, [getThreadMessages]);
+
+  // Handle file selection
+  const handleFileSelect = (file) => {
+    setSelectedFile(file);
+  };
+
+  // Handle file removal
+  const handleFileRemove = () => {
+    setSelectedFile(null);
+  };
+
+  // Handle file upload
+  const handleFileUpload = async () => {
+    if (!selectedFile || !currentDMId || isUploading) return;
+
+    try {
+      setIsUploading(true);
+      const result = await uploadDMFile(currentDMId, selectedFile, newMessage.trim());
+      
+      if (result.success) {
+        setSelectedFile(null);
+        setNewMessage('');
+        console.log('File uploaded successfully:', result.file);
+      } else {
+        console.error('Failed to upload file:', result.error);
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   // Handle sending a message
   const handleSendMessage = async (e) => {
@@ -423,7 +466,6 @@ const DMView = ({ selectedDM }) => {
                 const isOwnMessage = message.u?._id === user?._id || 
                                   message.u?.username === user?.username;
                 const isPinned = pinnedMessages.some(pinnedMsg => pinnedMsg._id === message._id);
-                
                 const isHighlighted = highlightedMessageId === message._id;
                 
                 return (
@@ -460,21 +502,123 @@ const DMView = ({ selectedDM }) => {
                             </span>
                           )}
                         </div>
-                        <p className="text-sm break-words">{message.msg}</p>
+                        
+                        {/* Message Text */}
+                        {message.msg && (
+                          <p className="text-sm break-words">{message.msg}</p>
+                        )}
+
+                        {/* File Attachments - Only render attachments if they exist, otherwise render file */}
+                        {message.attachments && message.attachments.length > 0 ? (
+                          <div className="mt-2">
+                            {message.attachments.map((attachment, index) => (
+                              <div key={index} className="p-3 bg-white/20 rounded-lg border border-white/30">
+                                <div className="flex items-start space-x-3">
+                                  <div className="flex-shrink-0">
+                                    {attachment.type?.startsWith('image/') ? (
+                                      <Image className="w-4 h-4" />
+                                    ) : attachment.type?.startsWith('video/') ? (
+                                      <Video className="w-4 h-4" />
+                                    ) : attachment.type?.startsWith('audio/') ? (
+                                      <Music className="w-4 h-4" />
+                                    ) : (
+                                      <File className="w-4 h-4" />
+                                    )}
+                                  </div>
+                                  
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-sm font-medium text-gray-900 truncate">
+                                        {attachment.title || 'Unknown file'}
+                                      </p>
+                                      <button
+                                        onClick={() => {
+                                          const baseUrl = import.meta.env.VITE_ROCKETCHAT_URL || 'http://localhost:3000';
+                                          const url = attachment.image_url || attachment.title_link;
+                                          if (url) {
+                                            const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
+                                            window.open(fullUrl, '_blank');
+                                          }
+                                        }}
+                                        className="ml-2 p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                        title="Download file"
+                                      >
+                                        <Download className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                    
+                                    {attachment.image_size && (
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        {Math.round(attachment.image_size / 1024)} KB
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Image Preview */}
+                                {attachment.type?.startsWith('image/') && attachment.image_preview && (
+                                  <div className="mt-3">
+                                    <img
+                                      src={`data:image/png;base64,${attachment.image_preview}`}
+                                      alt={attachment.title || 'Image'}
+                                      className="max-w-full h-auto rounded-lg shadow-sm"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : message.file ? (
+                          <div className="mt-2">
+                            <div className="p-3 bg-white/20 rounded-lg border border-white/30">
+                              <div className="flex items-start space-x-3">
+                                <div className="flex-shrink-0">
+                                  <File className="w-4 h-4" />
+                                </div>
+                                
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-sm font-medium text-gray-900 truncate">
+                                      {message.file.name || 'Unknown file'}
+                                    </p>
+                                    <button
+                                      onClick={() => {
+                                        const baseUrl = import.meta.env.VITE_ROCKETCHAT_URL || 'http://localhost:3000';
+                                        const url = message.file.url;
+                                        if (url) {
+                                          const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
+                                          window.open(fullUrl, '_blank');
+                                        }
+                                      }}
+                                      className="ml-2 p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                      title="Download file"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                  
+                                  {message.file.size && (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      {Math.round(message.file.size / 1024)} KB
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                       
                       {/* Thread Button - Always aligned to the left */}
                       {hasThreadReplies(message) && (
                         <div className={`mt-1 flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                          <Button
+                          <button
                             onClick={() => handleStartThread(message)}
-                            variant="ghost"
-                            size="sm"
-                            className="text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 px-2 py-1 rounded"
+                            className="text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
                           >
-                            <MessageSquare className="w-3 h-3 mr-1" />
+                            <MessageSquare className="w-3 h-3 mr-1 inline" />
                             Threads
-                          </Button>
+                          </button>
                         </div>
                       )}
                     </div>
@@ -508,7 +652,29 @@ const DMView = ({ selectedDM }) => {
 
         {/* Message Input */}
         <div className="flex-shrink-0 p-4 bg-transparent">
-          <div className="flex space-x-3">
+          {/* File Preview */}
+          {selectedFile && (
+            <div className="mb-3">
+              <FileUpload
+                onFileSelect={handleFileSelect}
+                onRemove={handleFileRemove}
+                selectedFile={selectedFile}
+                isUploading={isUploading}
+              />
+            </div>
+          )}
+          
+          <div className="flex items-center space-x-3 bg-white/80 backdrop-blur-sm rounded-lg border border-gray-300 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all">
+            {/* File Upload Button */}
+            <FileUpload
+              onFileSelect={handleFileSelect}
+              onRemove={handleFileRemove}
+              selectedFile={selectedFile}
+              isUploading={isUploading}
+              isCompact={true}
+            />
+            
+            {/* Message Input */}
             <input
               type="text"
               value={newMessage}
@@ -516,23 +682,26 @@ const DMView = ({ selectedDM }) => {
               onKeyPress={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  handleSendMessage(e);
+                  if (selectedFile) {
+                    handleFileUpload();
+                  } else {
+                    handleSendMessage(e);
+                  }
                 }
               }}
-              placeholder={`Message ${selectedDM}`}
-              className="flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white/80 backdrop-blur-sm text-gray-800 placeholder-gray-500 outline-none transition-all"
-              disabled={isSending}
+              placeholder={selectedFile ? `Add a description for ${selectedFile.name}...` : `Message ${selectedDM}`}
+              className="flex-1 px-2 py-3 bg-transparent text-gray-800 placeholder-gray-500 outline-none"
+              disabled={isSending || isUploading}
             />
-            <Button
-              onClick={handleSendMessage}
-              disabled={!newMessage.trim() || isSending}
-              variant="primary"
-              size="md"
-              className="flex items-center space-x-2 px-6"
+            
+            {/* Send Button */}
+            <button
+              onClick={selectedFile ? handleFileUpload : handleSendMessage}
+              disabled={(!newMessage.trim() && !selectedFile) || isSending || isUploading}
+              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Send className="w-4 h-4" />
-              <span className="hidden sm:inline">{isSending ? 'Sending...' : 'Send'}</span>
-            </Button>
+              <Send className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </div>

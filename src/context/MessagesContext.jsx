@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { messagesService } from '../api/messages/messagesService';
 import { dmsService } from '../api/dms/dmsService';
+import { fileService } from '../api/files/fileService';
 import { useAuth } from './AuthContext';
 import { useRooms } from './RoomsContext';
 
@@ -255,6 +256,62 @@ export const MessagesProvider = ({ children }) => {
     }
   }, []);
 
+  // Upload file to channel
+  const uploadChannelFile = useCallback(async (file, description = '') => {
+    if (!currentRoom) {
+      setError('No room selected');
+      return { success: false, error: 'No room selected' };
+    }
+
+    try {
+      setIsLoading(true);
+      const result = await fileService.uploadFile(currentRoom._id, file, description);
+      
+      if (result.success) {
+        // Refresh messages to show the uploaded file
+        await loadMessages();
+        return { success: true, file: result.file };
+      } else {
+        setError(result.error);
+        return { success: false, error: result.error };
+      }
+    } catch (err) {
+      setError('Failed to upload file');
+      console.error('Error uploading file:', err);
+      return { success: false, error: 'Failed to upload file' };
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentRoom, loadMessages]);
+
+  // Upload file to DM
+  const uploadDMFile = useCallback(async (dmId, file, description = '') => {
+    if (!dmId) {
+      setError('No DM selected');
+      return { success: false, error: 'No DM selected' };
+    }
+
+    try {
+      setIsLoading(true);
+      const result = await fileService.uploadFile(dmId, file, description);
+      
+      if (result.success) {
+        // Refresh DM messages to show the uploaded file
+        await loadDMMessages(dmId);
+        return { success: true, file: result.file };
+      } else {
+        setError(result.error);
+        return { success: false, error: result.error };
+      }
+    } catch (err) {
+      setError('Failed to upload file');
+      console.error('Error uploading file:', err);
+      return { success: false, error: 'Failed to upload file' };
+    } finally {
+      setIsLoading(false);
+    }
+  }, [loadDMMessages]);
+
   // Get direct messages
   const getDirectMessages = async (userId) => {
     try {
@@ -430,6 +487,8 @@ export const MessagesProvider = ({ children }) => {
     sendMessage,
     sendDMMessage,
     pollDMMessages,
+    uploadChannelFile,
+    uploadDMFile,
     getDirectMessages,
     getThreadMessages,
     getAllPinnedMessages,
