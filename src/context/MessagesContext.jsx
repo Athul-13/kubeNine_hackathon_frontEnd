@@ -198,6 +198,16 @@ export const MessagesProvider = ({ children }) => {
     }
   };
 
+  // Get pinned messages from all channels
+  const getAllPinnedMessages = async (channels) => {
+    try {
+      const result = await messagesService.getAllPinnedMessages(channels);
+      return result;
+    } catch {
+      return { success: false, error: 'Failed to get all pinned messages', pinnedByChannel: [] };
+    }
+  };
+
   // Pin a message
   const pinMessage = async (messageId) => {
     try {
@@ -271,6 +281,7 @@ export const MessagesProvider = ({ children }) => {
     sendMessage,
     getDirectMessages,
     getThreadMessages,
+    getAllPinnedMessages,
     pinMessage,
     unpinMessage,
     clearMessages,

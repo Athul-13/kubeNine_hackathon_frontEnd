@@ -1,4 +1,4 @@
-import { Home, MessageCircle, Search, User, Plus } from 'lucide-react';
+import { Home, MessageCircle, Search, User, Plus, Pin } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useStatus } from '../../context/StatusContext';
@@ -15,6 +15,7 @@ const PrimarySidebar = ({ activeNav, onUserClick, showUserProfile }) => {
     { id: 'home', label: 'Home', icon: Home, path: '/home' },
     { id: 'dms', label: 'DMs', icon: MessageCircle, path: '/dms' },
     { id: 'search', label: 'Search', icon: Search, path: '/search' },
+    { id: 'pinned', label: 'Pinned', icon: Pin, path: '/pinned' },
   ];
 
   const handleNavClick = (path) => {

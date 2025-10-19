@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Button } from '../ui';
 import { useAuth } from '../../context/AuthContext';
@@ -13,9 +13,78 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
   const { user, logout } = useAuth();
   const { userStatus, setCustomStatus, isUpdatingStatus } = useStatus();
   const { rooms, selectRoom, isLoading: roomsLoading } = useRooms();
-  const { selectRoomForMessages } = useMessages();
+  const { selectRoomForMessages, getAllPinnedMessages } = useMessages();
   const { showAddOptions, selectAddOption } = useAdd();
   const [selectedRoomId, setSelectedRoomId] = useState(null);
+  const [pinnedByChannel, setPinnedByChannel] = useState([]);
+  const [isLoadingPinned, setIsLoadingPinned] = useState(false);
+
+  const loadPinnedMessages = useCallback(async () => {
+    if (isLoadingPinned) return;
+    
+    try {
+      setIsLoadingPinned(true);
+      const result = await getAllPinnedMessages(rooms);
+      if (result.success) {
+        setPinnedByChannel(result.pinnedByChannel);
+      } else {
+        console.error('Failed to load pinned messages:', result.error);
+        setPinnedByChannel([]);
+      }
+    } catch (error) {
+      console.error('Error loading pinned messages:', error);
+      setPinnedByChannel([]);
+    } finally {
+      setIsLoadingPinned(false);
+    }
+  }, [isLoadingPinned, getAllPinnedMessages, rooms]);
+
+  // Load pinned messages when pinned nav is active
+  useEffect(() => {
+    if (activeNav === 'pinned' && rooms.length > 0) {
+      loadPinnedMessages();
+    }
+  }, [activeNav, rooms]);
+
+  // Handle clicking on a pinned message
+  const handlePinnedMessageClick = async (message, channelId) => {
+    try {
+      // Find the room by channelId
+      const room = rooms.find(r => r._id === channelId);
+      if (!room) {
+        console.error('Room not found for channelId:', channelId);
+        return;
+      }
+
+      // Select the room and load messages
+      selectRoom(room);
+      selectRoomForMessages();
+      setSelectedRoomId(channelId);
+      
+      // Navigate to home to show the channel
+      navigate('/home');
+      
+      // Wait a bit for the room to load, then scroll to the message
+      setTimeout(() => {
+        const messageElement = document.querySelector(`[data-message-id="${message._id}"]`);
+        if (messageElement) {
+          messageElement.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          });
+          
+          // Highlight the message briefly
+          messageElement.style.animation = 'pulse 2s ease-in-out';
+          setTimeout(() => {
+            messageElement.style.animation = '';
+          }, 2000);
+        }
+      }, 1000);
+    } catch (error) {
+      console.error('Error navigating to pinned message:', error);
+    }
+  };
+
   const getSecondaryContent = () => {
     // Show Add options if Add button was clicked
     if (showAddOptions) {
@@ -65,6 +134,11 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
         return {
           title: 'Search',
           items: ['Recent', 'Users', 'Posts', 'Hashtags']
+        };
+      case 'pinned':
+        return {
+          title: 'Pinned Messages',
+          items: pinnedByChannel
         };
       default:
         return { title: '', items: [] };
@@ -249,6 +323,45 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
                        <p>No rooms available</p>
                      </div>
                    )
+                 ) : activeNav === 'pinned' ? (
+                   // Render pinned messages grouped by channel
+                   isLoadingPinned ? (
+                     <div className="flex justify-center py-4">
+                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                       <span className="ml-2 text-gray-600">Loading pinned messages...</span>
+                     </div>
+                   ) : pinnedByChannel.length > 0 ? (
+                     <div className="space-y-4">
+                       {pinnedByChannel.map((channelGroup) => (
+                         <div key={channelGroup.channelId} className="space-y-2">
+                           <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-200 pb-1">
+                             #{channelGroup.channelName}
+                           </h3>
+                           {channelGroup.messages.map((message) => (
+                             <div
+                               key={message._id}
+                               onClick={() => handlePinnedMessageClick(message, channelGroup.channelId)}
+                               className="p-3 bg-white/50 backdrop-blur-sm rounded-lg border border-white/30 cursor-pointer hover:bg-white/70 transition-colors"
+                             >
+                               <div className="flex items-baseline space-x-2 mb-1">
+                                 <span className="text-xs font-medium text-gray-600">
+                                   {message.u?.name || message.u?.username || 'Unknown'}
+                                 </span>
+                                 <span className="text-xs text-gray-500">
+                                   {new Date(message.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                 </span>
+                               </div>
+                               <p className="text-sm text-gray-800 line-clamp-2">{message.msg}</p>
+                             </div>
+                           ))}
+                         </div>
+                       ))}
+                     </div>
+                   ) : (
+                     <div className="text-center py-4 text-gray-500">
+                       <p>No pinned messages found</p>
+                     </div>
+                   )
                  ) : (
                    // Render other sections (DMs, Search)
                    items.map((item) => (
@@ -323,6 +436,53 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
                      ))
                    ) : (
                      <span className="text-sm text-gray-500">No rooms</span>
+                   )}
+                 </div>
+               ) : activeNav === 'pinned' ? (
+                 // Mobile pinned messages view
+                 <div className="p-4">
+                   <h2 className="font-bold text-gray-800 text-sm mb-4 drop-shadow-sm">{title}</h2>
+                   {isLoadingPinned ? (
+                     <div className="flex items-center space-x-2">
+                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                       <span className="text-sm text-gray-500">Loading...</span>
+                     </div>
+                   ) : pinnedByChannel.length > 0 ? (
+                     <div className="space-y-3">
+                       {pinnedByChannel.map((channelGroup) => (
+                         <div key={channelGroup.channelId} className="space-y-2">
+                           <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-200 pb-1">
+                             #{channelGroup.channelName}
+                           </h3>
+                           <div className="space-y-1">
+                             {channelGroup.messages.slice(0, 3).map((message) => (
+                               <div
+                                 key={message._id}
+                                 onClick={() => handlePinnedMessageClick(message, channelGroup.channelId)}
+                                 className="p-2 bg-white/50 backdrop-blur-sm rounded-lg border border-white/30 cursor-pointer hover:bg-white/70 transition-colors"
+                               >
+                                 <div className="flex items-baseline space-x-2 mb-1">
+                                   <span className="text-xs font-medium text-gray-600">
+                                     {message.u?.name || message.u?.username || 'Unknown'}
+                                   </span>
+                                   <span className="text-xs text-gray-500">
+                                     {new Date(message.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                   </span>
+                                 </div>
+                                 <p className="text-xs text-gray-800 line-clamp-1">{message.msg}</p>
+                               </div>
+                             ))}
+                             {channelGroup.messages.length > 3 && (
+                               <p className="text-xs text-gray-500 text-center">
+                                 +{channelGroup.messages.length - 3} more
+                               </p>
+                             )}
+                           </div>
+                         </div>
+                       ))}
+                     </div>
+                   ) : (
+                     <p className="text-sm text-gray-500">No pinned messages found</p>
                    )}
                  </div>
                ) : (

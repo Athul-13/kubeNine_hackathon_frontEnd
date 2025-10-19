@@ -119,6 +119,55 @@ export const messagesService = {
       };
     }
   },
+
+  // Get pinned messages from all channels
+  getAllPinnedMessages: async (channels) => {
+    try {
+      const pinnedMessagesPromises = channels.map(async (channel) => {
+        try {
+          const response = await apiClient.get(`${API_ENDPOINTS.MESSAGES.GET_PINNED_MESSAGES}?roomId=${channel._id}`);
+          return {
+            channelId: channel._id,
+            channelName: channel.name,
+            messages: response.data.messages || [],
+            success: true
+          };
+        } catch (error) {
+          console.warn(`Failed to fetch pinned messages for channel ${channel.name}:`, error.response?.data?.error);
+          return {
+            channelId: channel._id,
+            channelName: channel.name,
+            messages: [],
+            success: false,
+            error: error.response?.data?.error
+          };
+        }
+      });
+
+      const results = await Promise.all(pinnedMessagesPromises);
+      
+      // Filter out channels with no pinned messages and group by channel
+      const pinnedByChannel = results
+        .filter(result => result.success && result.messages.length > 0)
+        .map(result => ({
+          channelId: result.channelId,
+          channelName: result.channelName,
+          messages: result.messages
+        }));
+
+      return {
+        success: true,
+        pinnedByChannel
+      };
+    } catch (error) {
+      console.error('Error fetching all pinned messages:', error);
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Failed to fetch pinned messages',
+        pinnedByChannel: []
+      };
+    }
+  },
 };
 
 export default messagesService;

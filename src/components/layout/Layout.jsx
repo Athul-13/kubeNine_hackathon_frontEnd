@@ -15,6 +15,7 @@ const Layout = () => {
     if (path === '/home' || path === '/') return 'home';
     if (path === '/dms') return 'dms';
     if (path === '/search') return 'search';
+    if (path === '/pinned') return 'pinned';
     return 'home';
   };
 

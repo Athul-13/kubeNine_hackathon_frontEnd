@@ -10,6 +10,7 @@ import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import DMsPage from './pages/DMsPage';
 import SearchPage from './pages/SearchPage';
+import PinnedPage from './pages/PinnedPage';
 import AddPage from './pages/AddPage';
 
 // Main app content with routing
@@ -24,10 +25,11 @@ const AppContent = () => {
       />
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Navigate to="/home" replace />} />
-        <Route path="home" element={<HomePage />} />
-        <Route path="dms" element={<DMsPage />} />
-        <Route path="search" element={<SearchPage />} />
-        <Route path="add" element={<AddPage />} />
+               <Route path="home" element={<HomePage />} />
+               <Route path="dms" element={<DMsPage />} />
+               <Route path="search" element={<SearchPage />} />
+               <Route path="pinned" element={<PinnedPage />} />
+               <Route path="add" element={<AddPage />} />
       </Route>
     </Routes>
   );
