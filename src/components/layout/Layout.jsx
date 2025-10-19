@@ -1,13 +1,19 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import PrimarySidebar from './PrimarySidebar';
 import SecondarySidebar from './SecondarySidebar';
-import { Card } from '../ui';
+import { Card, KeyboardShortcutsHelp } from '../ui';
 import { useState, useEffect } from 'react';
+import useKeyboardShortcuts from '../../hooks/useKeyboardShortcuts';
+import { useKeyboardShortcutsContext } from '../../context/KeyboardShortcutsContext';
 
 const Layout = () => {
   const location = useLocation();
   const [selectedItem, setSelectedItem] = useState(null);
   const [showUserProfile, setShowUserProfile] = useState(false);
+  
+  // Initialize keyboard shortcuts
+  useKeyboardShortcuts();
+  const { showHelp, hideHelp } = useKeyboardShortcutsContext();
 
   // Get current navigation based on pathname
   const getCurrentNav = () => {
@@ -108,6 +114,12 @@ const Layout = () => {
           showUserProfile={showUserProfile}
         />
       </div>
+      
+      {/* Keyboard Shortcuts Help */}
+      <KeyboardShortcutsHelp 
+        isOpen={showHelp} 
+        onClose={hideHelp} 
+      />
     </div>
   );
 };

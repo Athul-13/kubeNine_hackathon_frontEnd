@@ -1,8 +1,9 @@
-import { Home, MessageCircle, Search, User, Plus, Pin } from 'lucide-react';
+import { Home, MessageCircle, Search, User, Plus, Pin, HelpCircle } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useStatus } from '../../context/StatusContext';
 import { useAdd } from '../../context/AddContext';
+import { useKeyboardShortcutsContext } from '../../context/KeyboardShortcutsContext';
 import { Card, IconButton, Button } from '../ui';
 
 const PrimarySidebar = ({ activeNav, onUserClick, showUserProfile }) => {
@@ -11,6 +12,7 @@ const PrimarySidebar = ({ activeNav, onUserClick, showUserProfile }) => {
   const { user } = useAuth();
   const { userStatus } = useStatus();
   const { showAddMenu } = useAdd();
+  const { toggleHelp } = useKeyboardShortcutsContext();
   const navItems = [
     { id: 'home', label: 'Home', icon: Home, path: '/home' },
     { id: 'dms', label: 'DMs', icon: MessageCircle, path: '/dms' },
@@ -43,8 +45,13 @@ const PrimarySidebar = ({ activeNav, onUserClick, showUserProfile }) => {
     }
   };
 
+  const handleHelpClick = () => {
+    toggleHelp();
+  };
+
   const bottomItems = [
     { id: 'add', label: 'Add', icon: Plus, onClick: handleAddClick },
+    { id: 'help', label: 'Help', icon: HelpCircle, onClick: handleHelpClick },
     { id: 'user', label: 'User', icon: User, onClick: handleUserClick },
   ];
 

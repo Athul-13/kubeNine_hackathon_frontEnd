@@ -4,6 +4,7 @@ import { StatusProvider } from './context/StatusContext';
 import { RoomsProvider } from './context/RoomsContext';
 import { MessagesProvider } from './context/MessagesContext';
 import { AddProvider } from './context/AddContext';
+import { KeyboardShortcutsProvider } from './context/KeyboardShortcutsContext';
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
@@ -42,9 +43,11 @@ function App() {
         <RoomsProvider>
           <MessagesProvider>
             <AddProvider>
-              <Router>
-                <AppContent />
-              </Router>
+              <KeyboardShortcutsProvider>
+                <Router>
+                  <AppContent />
+                </Router>
+              </KeyboardShortcutsProvider>
             </AddProvider>
           </MessagesProvider>
         </RoomsProvider>
