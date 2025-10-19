@@ -37,10 +37,18 @@ const Layout = () => {
     }
   }, [location.state]);
 
+  // Handle pinned message navigation
+  useEffect(() => {
+    if (location.state?.fromPinnedMessage) {
+      // Clear the state to prevent re-selection on re-renders
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
   // Clear selected item when switching between different tab types
   useEffect(() => {
-    // Clear selectedItem when switching tabs (except for auto-selection)
-    if (!location.state?.autoSelectDM) {
+    // Clear selectedItem when switching tabs (except for auto-selection and pinned message navigation)
+    if (!location.state?.autoSelectDM && !location.state?.fromPinnedMessage) {
       setSelectedItem(null);
     }
   }, [activeNav, location.state]);

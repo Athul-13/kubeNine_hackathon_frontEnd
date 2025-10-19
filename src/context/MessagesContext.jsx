@@ -11,6 +11,7 @@ export const MessagesProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [dmMessages, setDmMessages] = useState([]);
   const [pinnedMessages, setPinnedMessages] = useState([]);
+  const [pinnedDmMessages, setPinnedDmMessages] = useState([]);
   const [dms, setDms] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingDMs, setIsLoadingDMs] = useState(false);
@@ -48,6 +49,22 @@ export const MessagesProvider = ({ children }) => {
       setIsLoading(false);
     }
   }, [currentRoom]);
+
+  // Load pinned messages for current DM
+  const loadPinnedDmMessages = useCallback(async (dmId) => {
+    if (!dmId) return;
+
+    try {
+      const result = await messagesService.getPinnedMessages(dmId);
+      if (result.success) {
+        setPinnedDmMessages(result.messages);
+      } else {
+        console.error('Failed to load pinned DM messages:', result.error);
+      }
+    } catch {
+      console.error('Error loading pinned DM messages');
+    }
+  }, []);
 
   // Load DM messages
   const loadDMMessages = useCallback(async (dmId, offset = 0) => {
@@ -451,6 +468,12 @@ export const MessagesProvider = ({ children }) => {
     setError(null);
   };
 
+  // Clear DM messages
+  const clearDMMessages = () => {
+    setDmMessages([]);
+    setPinnedDmMessages([]);
+  };
+
   // Clear error
   const clearError = () => {
     setError(null);
@@ -472,6 +495,7 @@ export const MessagesProvider = ({ children }) => {
     messages,
     dmMessages,
     pinnedMessages,
+    pinnedDmMessages,
     dms,
     isLoading,
     isLoadingDMs,
@@ -481,6 +505,7 @@ export const MessagesProvider = ({ children }) => {
     loadDMMessages,
     loadMoreMessages,
     loadPinnedMessages,
+    loadPinnedDmMessages,
     loadDMs,
     createDM,
     autoSelectDM,
@@ -495,6 +520,7 @@ export const MessagesProvider = ({ children }) => {
     pinMessage,
     unpinMessage,
     clearMessages,
+    clearDMMessages,
     clearError,
     selectRoomForMessages,
   };

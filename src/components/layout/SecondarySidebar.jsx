@@ -56,6 +56,8 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
   // Handle clicking on a pinned message
   const handlePinnedMessageClick = async (message, channelId) => {
     try {
+      console.log('Navigating to pinned message:', message, 'in channel:', channelId);
+      
       // Find the room by channelId
       const room = rooms.find(r => r._id === channelId);
       if (!room) {
@@ -63,18 +65,77 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
         return;
       }
 
+      console.log('Found room:', room);
+
       // Select the room and load messages
       selectRoom(room);
       selectRoomForMessages();
       setSelectedRoomId(channelId);
       
-      // Navigate to home to show the channel
-      navigate('/home');
+      // Update the selected item in the parent component
+      onSelect(room.name);
       
-      // Wait a bit for the room to load, then scroll to the message
-      setTimeout(() => {
-        const messageElement = document.querySelector(`[data-message-id="${message._id}"]`);
+      // Navigate to home to show the channel with pinned message flag
+      navigate('/home', { 
+        state: { 
+          fromPinnedMessage: true,
+          messageId: message._id 
+        } 
+      });
+      
+      // Wait for the room to load and messages to be rendered
+      const waitForMessage = () => {
+        // First check if we're on the home page and a room is selected
+        const isHomePage = window.location.pathname === '/home';
+        const hasSelectedItem = document.querySelector('button[class*="bg-blue"]') || 
+                               document.querySelector('button[class*="primary"]') ||
+                               document.querySelector('[class*="selected"]');
+        
+        if (!isHomePage || !hasSelectedItem) {
+          console.log('Not on home page or no room selected yet, retrying...');
+          if (waitForMessage.attempts < 10) {
+            waitForMessage.attempts = (waitForMessage.attempts || 0) + 1;
+            setTimeout(waitForMessage, 500);
+          } else {
+            console.error('Could not navigate to home page or select room after 10 attempts');
+          }
+          return;
+        }
+
+        // Check if messages are loaded (look for message container)
+        const messagesContainer = document.querySelector('[class*="messages"]') || 
+                                 document.querySelector('[class*="space-y-4"]') ||
+                                 document.querySelector('[class*="scrollbar-hide"]');
+        
+        if (!messagesContainer) {
+          console.log('Messages container not found yet, retrying...');
+          if (waitForMessage.attempts < 10) {
+            waitForMessage.attempts = (waitForMessage.attempts || 0) + 1;
+            setTimeout(waitForMessage, 500);
+          } else {
+            console.error('Could not find messages container after 10 attempts');
+          }
+          return;
+        }
+
+        let messageElement = document.querySelector(`[data-message-id="${message._id}"]`);
+        
+        // If not found by ID, try to find by message content
+        if (!messageElement && message.msg) {
+          const allMessages = document.querySelectorAll('[data-message-id]');
+          console.log(`Found ${allMessages.length} messages, searching for content...`);
+          for (let msgEl of allMessages) {
+            const msgText = msgEl.querySelector('p');
+            if (msgText && msgText.textContent.includes(message.msg.substring(0, 50))) {
+              messageElement = msgEl;
+              console.log('Found message by content match');
+              break;
+            }
+          }
+        }
+        
         if (messageElement) {
+          console.log('Found message element, scrolling to it');
           messageElement.scrollIntoView({ 
             behavior: 'smooth', 
             block: 'center' 
@@ -85,8 +146,20 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
           setTimeout(() => {
             messageElement.style.animation = '';
           }, 2000);
+        } else {
+          // If message not found, try again after a short delay (max 10 attempts)
+          console.log('Message element not found, retrying...');
+          if (waitForMessage.attempts < 10) {
+            waitForMessage.attempts = (waitForMessage.attempts || 0) + 1;
+            setTimeout(waitForMessage, 500);
+          } else {
+            console.error('Could not find message element after 10 attempts');
+          }
         }
-      }, 1000);
+      };
+
+      // Start looking for the message after a short delay
+      setTimeout(waitForMessage, 1000);
     } catch (error) {
       console.error('Error navigating to pinned message:', error);
     }

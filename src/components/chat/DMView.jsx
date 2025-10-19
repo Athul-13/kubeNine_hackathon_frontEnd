@@ -27,15 +27,16 @@ const DMView = ({ selectedDM }) => {
     sendDMMessage, 
     loadDMMessages, 
     loadMoreMessages,
-    pinnedMessages,
-    loadPinnedMessages,
+    pinnedDmMessages,
+    loadPinnedDmMessages,
     getThreadMessages,
     pinMessage,
     unpinMessage,
     pollDMMessages,
     uploadDMFile,
     dms,
-    isPolling
+    isPolling,
+    clearDMMessages
   } = useMessages();
   const { user } = useAuth();
   
@@ -66,7 +67,7 @@ const DMView = ({ selectedDM }) => {
         await pollDMMessages(currentDMId);
       }, 3000); // Poll every 3 seconds
     }
-  }, [currentDMId, pollDMMessages]);
+  }, [currentDMId]);
 
   // Stop polling
   const stopDMPolling = useCallback(() => {
@@ -89,18 +90,19 @@ const DMView = ({ selectedDM }) => {
       if (dm) {
         setCurrentDMId(dm._id);
         loadDMMessages(dm._id);
-        loadPinnedMessages();
+        loadPinnedDmMessages(dm._id);
         startDMPolling();
       }
     } else {
       setCurrentDMId(null);
+      clearDMMessages();
       stopDMPolling();
     }
 
     return () => {
       stopDMPolling();
     };
-  }, [selectedDM, dms, user?.username, loadDMMessages, loadPinnedMessages, startDMPolling, stopDMPolling]);
+  }, [selectedDM, dms, user?.username]);
 
   console.log('dmMessages', dmMessages);
 
@@ -262,6 +264,10 @@ const DMView = ({ selectedDM }) => {
       const result = await pinMessage(message._id);
       if (result.success) {
         console.log('Pinned message:', message);
+        // Refresh pinned DM messages
+        if (currentDMId) {
+          await loadPinnedDmMessages(currentDMId);
+        }
       } else {
         console.error('Failed to pin message:', result.error);
       }
@@ -277,6 +283,10 @@ const DMView = ({ selectedDM }) => {
       const result = await unpinMessage(message._id);
       if (result.success) {
         console.log('Unpinned message:', message);
+        // Refresh pinned DM messages
+        if (currentDMId) {
+          await loadPinnedDmMessages(currentDMId);
+        }
       } else {
         console.error('Failed to unpin message:', result.error);
       }
@@ -426,7 +436,7 @@ const DMView = ({ selectedDM }) => {
 
         {/* Pinned Messages Drawer */}
         <PinnedMessagesDrawer
-          pinnedMessages={pinnedMessages}
+          pinnedMessages={pinnedDmMessages}
           onMessageClick={handlePinnedMessageClick}
           isExpanded={isPinnedDrawerExpanded}
           onToggle={togglePinnedDrawer}
@@ -465,7 +475,7 @@ const DMView = ({ selectedDM }) => {
                 // Check if message is from current user
                 const isOwnMessage = message.u?._id === user?._id || 
                                   message.u?.username === user?.username;
-                const isPinned = pinnedMessages.some(pinnedMsg => pinnedMsg._id === message._id);
+                const isPinned = pinnedDmMessages.some(pinnedMsg => pinnedMsg._id === message._id);
                 const isHighlighted = highlightedMessageId === message._id;
                 
                 return (
@@ -752,7 +762,7 @@ const DMView = ({ selectedDM }) => {
           onPin={handlePin}
           onUnpin={handleUnpin}
           onStartThread={handleStartThread}
-          isPinned={pinnedMessages.some(pinnedMsg => pinnedMsg._id === contextMenu.message._id)}
+          isPinned={pinnedDmMessages.some(pinnedMsg => pinnedMsg._id === contextMenu.message._id)}
         />
       )}
     </div>
