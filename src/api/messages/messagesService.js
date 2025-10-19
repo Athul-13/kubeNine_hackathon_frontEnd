@@ -49,9 +49,9 @@ export const messagesService = {
   },
 
   // Get direct messages
-  getDirectMessages: async (userId, count = 50) => {
+  getDirectMessages: async (roomId, count = 50, offset = 0) => {
     try {
-      const response = await apiClient.get(`${API_ENDPOINTS.MESSAGES.DIRECT_MESSAGES}?userId=${userId}&count=${count}`);
+      const response = await apiClient.get(`${API_ENDPOINTS.MESSAGES.DIRECT_MESSAGES}?roomId=${roomId}&count=${count}&offset=${offset}`);
       return {
         success: true,
         messages: response.data.messages || [],

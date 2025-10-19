@@ -1,16 +1,37 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useRooms } from '../../context/RoomsContext';
+import { Card, Button, IconButton } from '../ui';
 import { useMessages } from '../../context/MessagesContext';
-import { Card, Button } from '../ui';
-import { Send, ChevronUp, Users, Hash, Info, MessageSquare } from 'lucide-react';
-import RoomInfo from './RoomInfo';
+import { useAuth } from '../../context/AuthContext';
+import { 
+  Send, 
+  Pin, 
+  ChevronUp,
+  MessageCircle,
+  MessageSquare,
+  Users
+} from 'lucide-react';
 import MessageContextMenu from './MessageContextMenu';
-import PinnedMessagesDrawer from './PinnedMessagesDrawer';
 import ThreadPanel from './ThreadPanel';
+import PinnedMessagesDrawer from './PinnedMessagesDrawer';
 
-const ChannelView = () => {
-  const { currentRoom, showRoomInfo, toggleRoomInfo, closeRoomInfo } = useRooms();
-  const { messages, pinnedMessages, isLoading, sendMessage, loadMoreMessages, isPolling, pinMessage, unpinMessage, getThreadMessages } = useMessages();
+const DMView = ({ selectedDM }) => {
+  const { 
+    dmMessages, 
+    isLoading, 
+    sendDMMessage, 
+    loadDMMessages, 
+    loadMoreMessages,
+    pinnedMessages,
+    loadPinnedMessages,
+    getThreadMessages,
+    pinMessage,
+    unpinMessage,
+    pollDMMessages,
+    dms,
+    isPolling
+  } = useMessages();
+  const { user } = useAuth();
+  
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [contextMenu, setContextMenu] = useState(null);
@@ -19,17 +40,75 @@ const ChannelView = () => {
   const [showThread, setShowThread] = useState(false);
   const [selectedThreadMessage, setSelectedThreadMessage] = useState(null);
   const [threadMessages, setThreadMessages] = useState([]);
+  const [currentDMId, setCurrentDMId] = useState(null);
+  const pollingIntervalRef = useRef(null);
+  
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
-  // Debug logging
-  useEffect(() => {
-    console.log('ChannelView - showRoomInfo changed:', showRoomInfo);
-  }, [showRoomInfo]);
+  // Start polling for new DM messages
+  const startDMPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
 
+    if (currentDMId) {
+      pollingIntervalRef.current = setInterval(async () => {
+        await pollDMMessages(currentDMId);
+      }, 3000); // Poll every 3 seconds
+    }
+  }, [currentDMId, pollDMMessages]);
+
+  // Stop polling
+  const stopDMPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }, []);
+
+  // Find DM by name and load messages when DM changes
   useEffect(() => {
-    console.log('ChannelView - currentRoom changed:', currentRoom);
-  }, [currentRoom]);
+    if (selectedDM && dms.length > 0) {
+      // Find the DM by matching the display name
+      const dm = dms.find(d => {
+        const otherUsernames = d.usernames?.filter(username => username !== user?.username) || [];
+        const displayName = otherUsernames.length > 0 ? otherUsernames.join(', ') : 'Unknown User';
+        return displayName === selectedDM;
+      });
+      
+      if (dm) {
+        setCurrentDMId(dm._id);
+        loadDMMessages(dm._id);
+        loadPinnedMessages();
+        startDMPolling();
+      }
+    } else {
+      setCurrentDMId(null);
+      stopDMPolling();
+    }
+
+    return () => {
+      stopDMPolling();
+    };
+  }, [selectedDM, dms, user?.username, loadDMMessages, loadPinnedMessages, startDMPolling, stopDMPolling]);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [dmMessages]);
+
+  // Close context menu on click outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (contextMenu) {
+        closeContextMenu();
+      }
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [contextMenu]);
 
   // Load thread messages for a specific message using API
   const loadThreadMessages = useCallback(async (messageId) => {
@@ -47,32 +126,23 @@ const ChannelView = () => {
     }
   }, [getThreadMessages]);
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-
-  // Close context menu on click outside
-  useEffect(() => {
-    const handleClickOutside = () => {
-      if (contextMenu) {
-        closeContextMenu();
-      }
-    };
-    
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-    }, [contextMenu]);
-
   // Handle sending a message
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || isSending) return;
 
+    // Find the DM ID
+    const dm = dms.find(d => {
+      const otherUsernames = d.usernames?.filter(username => username !== user?.username) || [];
+      const displayName = otherUsernames.length > 0 ? otherUsernames.join(', ') : 'Unknown User';
+      return displayName === selectedDM;
+    });
+
+    if (!dm) return;
+
     try {
       setIsSending(true);
-      await sendMessage(newMessage.trim());
+      await sendDMMessage(dm._id, newMessage.trim());
       setNewMessage('');
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -194,13 +264,22 @@ const ChannelView = () => {
   const handleSendThreadMessage = async (messageText) => {
     if (!selectedThreadMessage || !messageText.trim()) return;
 
+    // Find the DM ID
+    const dm = dms.find(d => {
+      const otherUsernames = d.usernames?.filter(username => username !== user?.username) || [];
+      const displayName = otherUsernames.length > 0 ? otherUsernames.join(', ') : 'Unknown User';
+      return displayName === selectedDM;
+    });
+
+    if (!dm) return;
+
     try {
-      const result = await sendMessage(messageText.trim(), selectedThreadMessage._id);
+      const result = await sendDMMessage(dm._id, messageText.trim(), selectedThreadMessage._id);
       if (result.success) {
         // Add the message to thread messages optimistically
         setThreadMessages(prev => [...prev, {
           _id: `temp-${Date.now()}`,
-          rid: currentRoom._id,
+          rid: dm._id,
           msg: messageText.trim(),
           ts: new Date().toISOString(),
           u: { _id: localStorage.getItem('userId'), username: localStorage.getItem('username') },
@@ -254,75 +333,51 @@ const ChannelView = () => {
       groups[date].push(message);
     });
     return groups;
-  };
+    };
 
-  if (!currentRoom) {
+    if (!selectedDM) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <Hash className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-600 mb-2">No Channel Selected</h3>
-          <p className="text-gray-500">Select a channel from the sidebar to start chatting</p>
+          <MessageCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-600 mb-2">No DM Selected</h3>
+          <p className="text-gray-500">Select a conversation from the sidebar to start chatting</p>
         </div>
       </div>
     );
   }
 
-  const messageGroups = groupMessagesByDate(messages);
+  const messageGroups = groupMessagesByDate(dmMessages);
 
   return (
     <div className="flex h-full">
       {/* Main Chat Area */}
-      <div 
-        className="flex flex-col flex-1 min-w-0"
-        onClick={() => {
-          if (showRoomInfo) {
-            console.log('Click outside detected, closing room info');
-            closeRoomInfo();
-          }
-        }}
-      >
-        {/* Channel Header */}
+      <div className="flex flex-col flex-1 min-w-0">
+        {/* DM Header */}
         <div className="flex-shrink-0 flex items-center justify-between p-4 rounded-lg btn-glass mb-0.5">
-          <div 
-            className="flex items-center space-x-3 cursor-pointer hover:bg-white/40 rounded-lg p-2 -m-2 transition-colors min-w-0"
-            onClick={(e) => {
-              e.stopPropagation();
-              console.log('Room header clicked, current state:', showRoomInfo);
-              toggleRoomInfo();
-            }}
-          >
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Hash className="w-5 h-5 text-white" />
+          <div className="flex items-center space-x-3 cursor-pointer hover:bg-white/40 rounded-lg p-2 -m-2 transition-colors min-w-0">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+              <MessageCircle className="w-5 h-5 text-white" />
             </div>
             <div className="min-w-0">
-              <h2 className="font-semibold text-gray-800 truncate">#{currentRoom.name}</h2>
-              {currentRoom.topic && (
-                <p className="text-sm text-gray-600 truncate">{currentRoom.topic}</p>
-              )}
+              <h2 className="font-semibold text-gray-800 truncate">{selectedDM}</h2>
+              <p className="text-sm text-gray-600 truncate">Direct Message</p>
             </div>
           </div>
           <div className="flex items-center space-x-3 flex-shrink-0">
             <div className="flex items-center space-x-2 text-sm text-gray-600">
               <Users className="w-4 h-4" />
-              <span className="hidden sm:inline">{currentRoom.usersCount || 0} members</span>
+              <span className="hidden sm:inline">2 members</span>
               {isPolling && (
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               )}
             </div>
-            <Button
-              onClick={(e) => {
-                e.stopPropagation();
-                console.log('Info button clicked, current state:', showRoomInfo);
-                toggleRoomInfo();
-              }}
-              variant="ghost"
+            <IconButton
+              icon={Pin}
+              onClick={togglePinnedDrawer}
+              variant={isPinnedDrawerExpanded ? 'primary' : 'default'}
               size="sm"
-              className="p-2 hover:bg-white/40 rounded-lg"
-              title="Room Information"
-            >
-              <Info className="w-4 h-4" />
-            </Button>
+            />
           </div>
         </div>
 
@@ -337,7 +392,7 @@ const ChannelView = () => {
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide" ref={messagesContainerRef}>
           {/* Load More Button */}
-          {messages.length > 0 && (
+          {dmMessages.length > 0 && (
             <div className="flex justify-center">
               <Button
                 onClick={handleLoadMore}
@@ -365,8 +420,8 @@ const ChannelView = () => {
               {/* Messages for this date */}
               {dateMessages.map((message, index) => {
                 // Check if message is from current user
-                const isOwnMessage = message.u?._id === currentRoom.currentUserId || 
-                                  message.u?.username === localStorage.getItem('username');
+                const isOwnMessage = message.u?._id === user?._id || 
+                                  message.u?.username === user?.username;
                 const isPinned = pinnedMessages.some(pinnedMsg => pinnedMsg._id === message._id);
                 
                 const isHighlighted = highlightedMessageId === message._id;
@@ -430,7 +485,7 @@ const ChannelView = () => {
           ))}
 
           {/* Loading State */}
-          {isLoading && messages.length === 0 && (
+          {isLoading && dmMessages.length === 0 && (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
               <span className="ml-2 text-gray-600">Loading messages...</span>
@@ -438,12 +493,12 @@ const ChannelView = () => {
           )}
 
           {/* Empty State */}
-          {!isLoading && messages.length === 0 && (
+          {!isLoading && dmMessages.length === 0 && (
             <div className="flex items-center justify-center py-8">
               <div className="text-center">
-                <Hash className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                <MessageCircle className="w-12 h-12 text-gray-400 mx-auto mb-2" />
                 <p className="text-gray-500">No messages yet</p>
-                <p className="text-sm text-gray-400">Be the first to send a message!</p>
+                <p className="text-sm text-gray-400">Start the conversation!</p>
               </div>
             </div>
           )}
@@ -464,7 +519,7 @@ const ChannelView = () => {
                   handleSendMessage(e);
                 }
               }}
-              placeholder={`Message #${currentRoom.name}`}
+              placeholder={`Message ${selectedDM}`}
               className="flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white/80 backdrop-blur-sm text-gray-800 placeholder-gray-500 outline-none transition-all"
               disabled={isSending}
             />
@@ -482,86 +537,57 @@ const ChannelView = () => {
         </div>
       </div>
 
-             {/* Room Info Panel - Responsive */}
-             {showRoomInfo && (
-               <>
-                 {/* Mobile: Slide-in Overlay */}
-                 <div 
-                   className="md:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-                   onClick={closeRoomInfo}
-                 >
-                   <div 
-                     className="absolute right-0 top-0 bottom-0 w-full max-w-sm h-full"
-                     onClick={(e) => e.stopPropagation()}
-                   >
-                     <RoomInfo 
-                       roomId={currentRoom._id} 
-                       onClose={closeRoomInfo} 
-                     />
-                   </div>
-                 </div>
+      {/* Thread Panel - Responsive */}
+      {showThread && selectedThreadMessage && (
+        <>
+          {/* Mobile: Slide-in Overlay */}
+          <div 
+            className="md:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+            onClick={handleCloseThread}
+          >
+            <div 
+              className="absolute right-0 top-0 bottom-0 w-full max-w-sm h-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ThreadPanel
+                originalMessage={selectedThreadMessage}
+                threadMessages={threadMessages}
+                onSendThreadMessage={handleSendThreadMessage}
+                onClose={handleCloseThread}
+                isLoading={isLoading}
+              />
+            </div>
+          </div>
 
-                 {/* Desktop: Side Panel - Takes full height */}
-                 <div className="hidden md:block w-96 flex-shrink-0 h-full">
-                   <RoomInfo 
-                     roomId={currentRoom._id} 
-                     onClose={closeRoomInfo} 
-                   />
-                 </div>
-               </>
-             )}
+          {/* Desktop: Side Panel - Takes full height */}
+          <div className="hidden md:block w-96 flex-shrink-0 h-full">
+            <ThreadPanel
+              originalMessage={selectedThreadMessage}
+              threadMessages={threadMessages}
+              onSendThreadMessage={handleSendThreadMessage}
+              onClose={handleCloseThread}
+              isLoading={isLoading}
+            />
+          </div>
+        </>
+      )}
 
-             {/* Thread Panel - Responsive */}
-             {showThread && selectedThreadMessage && (
-               <>
-                 {/* Mobile: Slide-in Overlay */}
-                 <div 
-                   className="md:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-                   onClick={handleCloseThread}
-                 >
-                   <div 
-                     className="absolute right-0 top-0 bottom-0 w-full max-w-sm h-full"
-                     onClick={(e) => e.stopPropagation()}
-                   >
-                     <ThreadPanel
-                       originalMessage={selectedThreadMessage}
-                       threadMessages={threadMessages}
-                       onSendThreadMessage={handleSendThreadMessage}
-                       onClose={handleCloseThread}
-                       isLoading={isLoading}
-                     />
-                   </div>
-                 </div>
-
-                 {/* Desktop: Side Panel - Takes full height */}
-                 <div className="hidden md:block w-96 flex-shrink-0 h-full">
-                   <ThreadPanel
-                     originalMessage={selectedThreadMessage}
-                     threadMessages={threadMessages}
-                     onSendThreadMessage={handleSendThreadMessage}
-                     onClose={handleCloseThread}
-                     isLoading={isLoading}
-                   />
-                 </div>
-               </>
-             )}
-
-             {/* Context Menu */}
-             {contextMenu && (
-                 <MessageContextMenu
-                   message={contextMenu.message}
-                   x={contextMenu.x}
-                   y={contextMenu.y}
-                   onClose={closeContextMenu}
-                   onReply={handleReply}
-                   onPin={handlePin}
-                   onUnpin={handleUnpin}
-                   onStartThread={handleStartThread}
-                   isPinned={pinnedMessages.some(pinnedMsg => pinnedMsg._id === contextMenu.message._id)}
-                 />
-             )}
+      {/* Context Menu */}
+      {contextMenu && (
+        <MessageContextMenu
+          message={contextMenu.message}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={closeContextMenu}
+          onReply={handleReply}
+          onPin={handlePin}
+          onUnpin={handleUnpin}
+          onStartThread={handleStartThread}
+          isPinned={pinnedMessages.some(pinnedMsg => pinnedMsg._id === contextMenu.message._id)}
+        />
+      )}
     </div>
   );
 };
 
-export default ChannelView;
+export default DMView;

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Button } from '../components/ui';
+import { Card, Button, DMUserDropdown } from '../components/ui';
 import UserSearchDropdown from '../components/ui/UserSearchDropdown';
 import { useAdd } from '../context/AddContext';
 import { useRooms } from '../context/RoomsContext';
+import { useMessages } from '../context/MessagesContext';
 import { channelsService } from '../api/channels/channelsService';
 import { X, Hash, MessageCircle, CheckCircle, AlertCircle } from 'lucide-react';
 
@@ -11,6 +12,7 @@ const AddPage = () => {
   const navigate = useNavigate();
   const { selectedAddOption, closeForm } = useAdd();
   const { createRoom } = useRooms();
+  const { createDM } = useMessages();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -21,8 +23,7 @@ const AddPage = () => {
   });
 
   const [dmForm, setDmForm] = useState({
-    username: '',
-    message: '',
+    selectedUser: null,
   });
 
   // Channel name validation
@@ -140,18 +141,33 @@ const AddPage = () => {
   // Handle DM form submission
   const handleDMSubmit = async (e) => {
     e.preventDefault();
-    if (!dmForm.username.trim()) return;
+    if (!dmForm.selectedUser) return;
 
     try {
       setIsSubmitting(true);
       setError(null);
       
-      // TODO: Implement DM creation API
-      console.log('Creating DM with:', dmForm);
+      // Create DM with username using context
+      const result = await createDM(dmForm.selectedUser.username);
       
-      // For now, just show success and close
-      navigate('/home');
-      closeForm();
+      if (result.success) {
+        // Navigate to DMs tab and auto-select the new DM
+        navigate('/dms');
+        closeForm();
+        
+        // Auto-select the new DM by passing the DM data through navigation state
+        // The Layout component will handle this
+        navigate('/dms', { 
+          state: { 
+            autoSelectDM: {
+              id: result.dm._id,
+              name: result.dm.name || dmForm.selectedUser.name || dmForm.selectedUser.username
+            }
+          } 
+        });
+      } else {
+        setError(result.error || 'Failed to create direct message');
+      }
     } catch (err) {
       setError('Failed to create direct message');
     } finally {
@@ -180,11 +196,10 @@ const AddPage = () => {
     }));
   };
 
-  const handleDMChange = (e) => {
-    const { name, value } = e.target;
-    setDMForm(prev => ({
+  const handleDMUserSelect = (user) => {
+    setDmForm(prev => ({
       ...prev,
-      [name]: value
+      selectedUser: user
     }));
   };
 
@@ -330,30 +345,12 @@ const AddPage = () => {
             <form onSubmit={handleDMSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Username *
+                  Select User *
                 </label>
-                <input
-                  type="text"
-                  name="username"
-                  value={dmForm.username}
-                  onChange={handleDMChange}
-                  placeholder="Enter username"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white/80 backdrop-blur-sm text-gray-800 placeholder-gray-500 outline-none transition-all"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Initial Message (Optional)
-                </label>
-                <textarea
-                  name="message"
-                  value={dmForm.message}
-                  onChange={handleDMChange}
-                  placeholder="Start the conversation..."
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white/80 backdrop-blur-sm text-gray-800 placeholder-gray-500 outline-none transition-all resize-none"
+                <DMUserDropdown
+                  selectedUser={dmForm.selectedUser}
+                  onUserSelect={handleDMUserSelect}
+                  placeholder="Search for a user to message..."
                 />
               </div>
 
@@ -371,7 +368,7 @@ const AddPage = () => {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={!dmForm.username.trim() || isSubmitting}
+                  disabled={!dmForm.selectedUser || isSubmitting}
                   variant="primary"
                   className="flex-1"
                 >

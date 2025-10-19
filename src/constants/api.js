@@ -29,12 +29,16 @@ export const API_ENDPOINTS = {
   },
   MESSAGES: {
     CHANNEL_MESSAGES: '/api/v1/channels.history',
-    DIRECT_MESSAGES: '/api/v1/im.messages',
+    DIRECT_MESSAGES: '/api/v1/dm.messages',
     SEND_MESSAGE: '/api/v1/chat.sendMessage',
     PIN_MESSAGE: '/api/v1/chat.pinMessage',
     UNPIN_MESSAGE: '/api/v1/chat.unPinMessage',
     GET_PINNED_MESSAGES: '/api/v1/chat.getPinnedMessages',
     GET_THREAD_MESSAGES: '/api/v1/chat.getThreadMessages',
+  },
+  DMS: {
+    LIST: '/api/v1/dm.list',
+    CREATE: '/api/v1/dm.create',
   },
 };
 

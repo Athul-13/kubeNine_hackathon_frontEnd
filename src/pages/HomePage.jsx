@@ -6,11 +6,11 @@ import ChannelView from '../components/chat/ChannelView';
 
 const HomePage = () => {
   const { selectedItem } = useOutletContext();
-  const { currentRoom, rooms, isLoading: roomsLoading } = useRooms();
+  const { rooms, isLoading: roomsLoading } = useRooms();
   const { messages, isLoading: messagesLoading } = useMessages();
 
   // If a room is selected, show the channel view
-  if (currentRoom) {
+  if (selectedItem) {
     return <ChannelView />;
   }
 

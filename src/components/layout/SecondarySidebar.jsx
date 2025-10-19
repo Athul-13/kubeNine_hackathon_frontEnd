@@ -13,7 +13,7 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
   const { user, logout } = useAuth();
   const { userStatus, setCustomStatus, isUpdatingStatus } = useStatus();
   const { rooms, selectRoom, isLoading: roomsLoading } = useRooms();
-  const { selectRoomForMessages, getAllPinnedMessages } = useMessages();
+  const { selectRoomForMessages, getAllPinnedMessages, dms, loadDMs, isLoadingDMs } = useMessages();
   const { showAddOptions, selectAddOption } = useAdd();
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [pinnedByChannel, setPinnedByChannel] = useState([]);
@@ -45,6 +45,13 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
       loadPinnedMessages();
     }
   }, [activeNav, rooms]);
+
+  // Load DMs when dms nav is active
+  useEffect(() => {
+    if (activeNav === 'dms') {
+      loadDMs();
+    }
+  }, [activeNav]);
 
   // Handle clicking on a pinned message
   const handlePinnedMessageClick = async (message, channelId) => {
@@ -128,7 +135,19 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
       case 'dms':
         return {
           title: 'Direct Messages',
-          items: ['Alice', 'Bob', 'Charlie', 'Diana']
+          items: dms.map(dm => {
+            // Get the other usernames (not the current user)
+            const otherUsernames = dm.usernames?.filter(username => username !== user?.username) || [];
+            const displayName = otherUsernames.length > 0 ? otherUsernames.join(', ') : 'Unknown User';
+            
+            return {
+              id: dm._id,
+              name: displayName,
+              username: otherUsernames[0] || 'unknown',
+              unread: dm.unread || 0,
+              isSelected: selectedRoomId === dm._id
+            };
+          })
         };
       case 'search':
         return {
@@ -362,8 +381,45 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
                        <p>No pinned messages found</p>
                      </div>
                    )
+                 ) : activeNav === 'dms' ? (
+                   // Render DMs
+                   isLoadingDMs ? (
+                     <div className="flex justify-center py-4">
+                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                       <span className="ml-2 text-gray-600">Loading DMs...</span>
+                     </div>
+                   ) : items.length > 0 ? (
+                     items.map((dm) => (
+                       <Button
+                         key={dm.id}
+                         onClick={() => {
+                           // For DMs, we'll handle selection differently
+                           onSelect(dm.name);
+                           setSelectedRoomId(dm.id);
+                         }}
+                         variant={dm.isSelected ? 'primary' : 'default'}
+                         className="w-full justify-start flex items-center space-x-3"
+                       >
+                         {/* User Icon */}
+                         <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                           {dm.name.charAt(0).toUpperCase()}
+                         </div>
+                         <span className="flex-1 text-left">{dm.name}</span>
+                         {dm.unread > 0 && (
+                           <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                             {dm.unread}
+                           </span>
+                         )}
+                       </Button>
+                     ))
+                   ) : (
+                     <div className="text-center py-4 text-gray-500">
+                       <p>No direct messages yet</p>
+                       <p className="text-sm text-gray-400 mt-1">Click the Add button to start a conversation</p>
+                     </div>
+                   )
                  ) : (
-                   // Render other sections (DMs, Search)
+                   // Render other sections (Search)
                    items.map((item) => (
                      <Button
                        key={typeof item === 'string' ? item : item.id || item.name}
@@ -485,8 +541,50 @@ const SecondarySidebar = ({ activeNav, selectedItem, onSelect, showUserProfile, 
                      <p className="text-sm text-gray-500">No pinned messages found</p>
                    )}
                  </div>
+               ) : activeNav === 'dms' ? (
+                 // Mobile DMs view
+                 <div className="p-4">
+                   <h2 className="font-bold text-gray-800 text-sm mb-4 drop-shadow-sm">{title}</h2>
+                   {isLoadingDMs ? (
+                     <div className="flex items-center space-x-2">
+                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                       <span className="text-sm text-gray-500">Loading...</span>
+                     </div>
+                   ) : items.length > 0 ? (
+                     <div className="space-y-1">
+                       {items.map((dm) => (
+                         <Button
+                           key={dm.id}
+                           onClick={() => {
+                             onSelect(dm.name);
+                             setSelectedRoomId(dm.id);
+                           }}
+                           variant={dm.isSelected ? 'primary' : 'secondary'}
+                           size="sm"
+                           className="w-full justify-start flex items-center space-x-2"
+                         >
+                           {/* User Icon */}
+                           <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                             {dm.name.charAt(0).toUpperCase()}
+                           </div>
+                           <span className="flex-1 text-left">{dm.name}</span>
+                           {dm.unread > 0 && (
+                             <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[16px] text-center">
+                               {dm.unread}
+                             </span>
+                           )}
+                         </Button>
+                       ))}
+                     </div>
+                   ) : (
+                     <div className="text-center py-4 text-gray-500">
+                       <p className="text-sm">No direct messages yet</p>
+                       <p className="text-xs text-gray-400 mt-1">Click Add to start chatting</p>
+                     </div>
+                   )}
+                 </div>
                ) : (
-                 // Other sections (DMs, Search)
+                 // Other sections (Search)
                  <div className="flex items-center space-x-2 p-4 min-w-max">
                    <h2 className="font-bold text-gray-800 text-sm whitespace-nowrap mr-4 drop-shadow-sm">{title}</h2>
                    {items.map((item) => (

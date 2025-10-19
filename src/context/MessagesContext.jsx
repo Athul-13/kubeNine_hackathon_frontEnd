@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { messagesService } from '../api/messages/messagesService';
+import { dmsService } from '../api/dms/dmsService';
 import { useAuth } from './AuthContext';
 import { useRooms } from './RoomsContext';
 
@@ -7,8 +8,11 @@ const MessagesContext = createContext(null);
 
 export const MessagesProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
+  const [dmMessages, setDmMessages] = useState([]);
   const [pinnedMessages, setPinnedMessages] = useState([]);
+  const [dms, setDms] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingDMs, setIsLoadingDMs] = useState(false);
   const [error, setError] = useState(null);
   const [isPolling, setIsPolling] = useState(false);
   const [isRoomExplicitlySelected, setIsRoomExplicitlySelected] = useState(false);
@@ -16,25 +20,8 @@ export const MessagesProvider = ({ children }) => {
   const { isAuthenticated } = useAuth();
   const { currentRoom } = useRooms();
 
-  // Load messages when room changes (only if explicitly selected)
-  useEffect(() => {
-    if (isAuthenticated && currentRoom && isRoomExplicitlySelected) {
-      loadMessages();
-      loadPinnedMessages();
-      startPolling();
-    } else {
-      setMessages([]);
-      setPinnedMessages([]);
-      stopPolling();
-    }
-
-    return () => {
-      stopPolling();
-    };
-  }, [currentRoom, isAuthenticated, isRoomExplicitlySelected]);
-
   // Load messages for current room
-  const loadMessages = async (offset = 0) => {
+  const loadMessages = useCallback(async (offset = 0) => {
     if (!currentRoom) return;
 
     try {
@@ -59,10 +46,38 @@ export const MessagesProvider = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentRoom]);
+
+  // Load DM messages
+  const loadDMMessages = useCallback(async (dmId, offset = 0) => {
+    if (!dmId) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      const result = await messagesService.getDirectMessages(dmId, 50, offset);
+      
+      if (result.success) {
+        if (offset === 0) {
+          // First load - replace all messages
+          setDmMessages(result.messages.reverse());
+        } else {
+          // Load more - prepend older messages
+          setDmMessages(prev => [...result.messages.reverse(), ...prev]);
+        }
+      } else {
+        setError(result.error);
+      }
+    } catch (err) {
+      setError('Failed to load DM messages');
+      console.error('Error loading DM messages:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   // Start polling for new messages
-  const startPolling = () => {
+  const startPolling = useCallback(() => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
     }
@@ -87,16 +102,49 @@ export const MessagesProvider = ({ children }) => {
         }
       }, 3000); // Poll every 3 seconds
     }
-  };
+  }, [currentRoom, isAuthenticated]);
 
   // Stop polling
-  const stopPolling = () => {
+  const stopPolling = useCallback(() => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
     setIsPolling(false);
-  };
+  }, []);
+
+  // Load pinned messages for current room
+  const loadPinnedMessages = useCallback(async () => {
+    if (!currentRoom) return;
+
+    try {
+      const result = await messagesService.getPinnedMessages(currentRoom._id);
+      if (result.success) {
+        setPinnedMessages(result.messages);
+      } else {
+        console.error('Failed to load pinned messages:', result.error);
+      }
+    } catch {
+      console.error('Error loading pinned messages');
+    }
+  }, [currentRoom]);
+
+  // Load messages when room changes (only if explicitly selected)
+  useEffect(() => {
+    if (isAuthenticated && currentRoom && isRoomExplicitlySelected) {
+      loadMessages();
+      loadPinnedMessages();
+      startPolling();
+    } else {
+      setMessages([]);
+      setPinnedMessages([]);
+      stopPolling();
+    }
+
+    return () => {
+      stopPolling();
+    };
+  }, [currentRoom, isAuthenticated, isRoomExplicitlySelected, loadMessages, loadPinnedMessages, startPolling, stopPolling]);
 
   // Send a message
   const sendMessage = async (message, tmid = null) => {
@@ -142,6 +190,71 @@ export const MessagesProvider = ({ children }) => {
     }
   };
 
+  // Send a DM message
+  const sendDMMessage = async (dmId, message, tmid = null) => {
+    if (!dmId) {
+      setError('No DM selected');
+      return { success: false, error: 'No DM selected' };
+    }
+
+    try {
+      setIsLoading(true);
+      const result = await messagesService.sendMessage(dmId, message, tmid);
+      
+      if (result.success) {
+        // Add the new message to the DM messages list immediately for better UX
+        const newMessage = {
+          _id: Date.now().toString(), // Temporary ID
+          msg: message,
+          ts: new Date().toISOString(),
+          u: {
+            _id: localStorage.getItem('userId'),
+            username: localStorage.getItem('username'),
+            name: JSON.parse(localStorage.getItem('user') || '{}').name,
+          },
+        };
+        
+        // Add tmid if it's a thread message
+        if (tmid) {
+          newMessage.tmid = tmid;
+        }
+        
+        setDmMessages(prevMessages => [...prevMessages, newMessage]);
+        return { success: true, message: result.message };
+      } else {
+        setError(result.error);
+        return { success: false, error: result.error };
+      }
+    } catch (err) {
+      setError('Failed to send DM message');
+      console.error('Error sending DM message:', err);
+      return { success: false, error: 'Failed to send DM message' };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Poll DM messages for real-time updates
+  const pollDMMessages = useCallback(async (dmId) => {
+    if (!dmId) return;
+
+    try {
+      const result = await messagesService.getDirectMessages(dmId, 50, 0);
+      if (result.success) {
+        const newMessages = result.messages.reverse();
+        setDmMessages(prevMessages => {
+          // Only update if we have new messages
+          if (newMessages.length !== prevMessages.length) {
+            return newMessages;
+          }
+          return prevMessages;
+        });
+      }
+    } catch (err) {
+      console.error('Error polling DM messages:', err);
+    }
+  }, []);
+
   // Get direct messages
   const getDirectMessages = async (userId) => {
     try {
@@ -172,22 +285,6 @@ export const MessagesProvider = ({ children }) => {
     await loadMessages(offset);
   };
 
-  // Load pinned messages for current room
-  const loadPinnedMessages = async () => {
-    if (!currentRoom) return;
-
-    try {
-      const result = await messagesService.getPinnedMessages(currentRoom._id);
-      if (result.success) {
-        setPinnedMessages(result.messages);
-      } else {
-        console.error('Failed to load pinned messages:', result.error);
-      }
-    } catch {
-      console.error('Error loading pinned messages');
-    }
-  };
-
   // Get thread messages for a specific message
   const getThreadMessages = async (tmid) => {
     try {
@@ -206,6 +303,51 @@ export const MessagesProvider = ({ children }) => {
     } catch {
       return { success: false, error: 'Failed to get all pinned messages', pinnedByChannel: [] };
     }
+  };
+
+  // Load direct messages
+  const loadDMs = useCallback(async () => {
+    try {
+      setIsLoadingDMs(true);
+      const result = await dmsService.getDMs();
+      if (result.success) {
+        setDms(result.dms);
+      } else {
+        setError(result.error);
+        setDms([]);
+      }
+    } catch {
+      setError('Failed to load direct messages');
+      setDms([]);
+    } finally {
+      setIsLoadingDMs(false);
+    }
+  }, []);
+
+  // Create a new direct message
+  const createDM = useCallback(async (username) => {
+    try {
+      const result = await dmsService.createDM(username);
+      if (result.success) {
+        // Refresh DM list
+        await loadDMs();
+        return result;
+      } else {
+        return result;
+      }
+    } catch {
+      return { success: false, error: 'Failed to create direct message' };
+    }
+  }, [loadDMs]);
+
+  // Auto-select a DM by ID
+  const autoSelectDM = (dmId) => {
+    const dm = dms.find(d => d._id === dmId);
+    if (dm) {
+      // This will be handled by the parent component
+      return dm;
+    }
+    return null;
   };
 
   // Pin a message
@@ -267,18 +409,27 @@ export const MessagesProvider = ({ children }) => {
     return () => {
       stopPolling();
     };
-  }, []);
+  }, [stopPolling]);
 
   const value = {
     messages,
+    dmMessages,
     pinnedMessages,
+    dms,
     isLoading,
+    isLoadingDMs,
     error,
     isPolling,
     loadMessages,
+    loadDMMessages,
     loadMoreMessages,
     loadPinnedMessages,
+    loadDMs,
+    createDM,
+    autoSelectDM,
     sendMessage,
+    sendDMMessage,
+    pollDMMessages,
     getDirectMessages,
     getThreadMessages,
     getAllPinnedMessages,
@@ -296,7 +447,7 @@ export const MessagesProvider = ({ children }) => {
   );
 };
 
-export const useMessages = () => {
+export const  useMessages = () => {
   const context = useContext(MessagesContext);
   if (!context) {
     throw new Error('useMessages must be used within a MessagesProvider');
